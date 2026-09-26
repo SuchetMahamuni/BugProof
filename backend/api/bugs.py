@@ -4,11 +4,33 @@ Bugs API.
 Endpoints for creating, retrieving, and managing bug reports.
 """
 
+import threading
+
 from flask import Blueprint, jsonify, request, current_app
 from backend.database.connection import db
 from backend.models import Bug, BugStatus, TargetRepository
 
 bugs_bp = Blueprint("bugs", __name__, url_prefix="/api/bugs")
+
+
+def _run_workflow_in_thread(app, bug_id: str) -> None:
+    """
+    Execute the WorkflowOrchestrator in a background thread.
+
+    This function is the thread target.  It sets up an app context and
+    runs the full investigation → RCA → fix-proposal pipeline.
+    """
+    from backend.core.workflow import WorkflowOrchestrator
+    from backend.config.settings import REPOS_WORKSPACE
+
+    orchestrator = WorkflowOrchestrator(
+        repository_workspace=REPOS_WORKSPACE,
+        # AI components default to None; stubs are used when not configured.
+        ai_investigator=None,
+        ai_root_cause=None,
+        ai_fixer=None,
+    )
+    orchestrator.execute(bug_id=bug_id, app=app)
 
 
 @bugs_bp.route("", methods=["POST"])
@@ -97,10 +119,17 @@ def start_debugging(bug_id: str):
     """
     Trigger the debugging workflow for a bug.
 
-    Enqueues a background run and returns immediately with the run metadata.
-    The actual investigation happens asynchronously.
+    Loads the stored Bug record (by bug_id) and starts the investigation
+    pipeline in a background thread.  Returns 202 immediately; the caller
+    should poll GET /api/bugs/<bug_id> or GET /api/investigations/bug/<bug_id>
+    to track progress.
 
-    Returns 202 Accepted with the run status.
+    The full pipeline executes as:
+      Investigation → Evidence collection → RCA → Fix proposal (PENDING)
+
+    The bug's status is set to INVESTIGATING before the response is returned.
+
+    Returns 202 Accepted with the run metadata, or 404 / 409 on error.
     """
     bug = db.session.get(Bug, bug_id)
     if bug is None:
@@ -111,14 +140,26 @@ def start_debugging(bug_id: str):
             {"error": f"Bug is already in status '{bug.status}'. Cannot restart."}
         ), 409
 
-    # Update status to INVESTIGATING immediately so the caller knows work started.
+    # Set status to INVESTIGATING immediately so the caller knows work started.
     bug.status = BugStatus.INVESTIGATING
     db.session.commit()
 
-    # Integration point: submit bug_id to a background task queue (Celery etc.)
-    # For now, return the run metadata so the frontend can poll /api/bugs/<id>.
+    # Run the workflow in a daemon background thread.
+    # The thread uses its own Flask app context (passed as argument).
+    app = current_app._get_current_object()  # unwrap proxy for thread safety
+    thread = threading.Thread(
+        target=_run_workflow_in_thread,
+        args=(app, bug_id),
+        daemon=True,
+    )
+    thread.start()
+
     return jsonify({
-        "message": "Debugging run started.",
+        "message": "Debugging run started. Poll the bug status or investigations endpoint for progress.",
         "bug_id": bug_id,
         "status": bug.status,
+        "poll_urls": {
+            "bug_status": f"/api/bugs/{bug_id}",
+            "investigations": f"/api/investigations/bug/{bug_id}",
+        },
     }), 202
