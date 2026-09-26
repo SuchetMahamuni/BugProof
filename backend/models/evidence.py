@@ -73,7 +73,17 @@ class Evidence(db.Model):
     # ---------- Source-code evidence ----------
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     line_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # End of line range (inclusive) when the evidence spans multiple lines
+    line_number_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     code_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ---------- Search / query provenance ----------
+    # The search query or keyword that led to finding this evidence.
+    # Allows reviewers to understand WHY a piece of evidence was collected.
+    search_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Free-form explanation of why this evidence is relevant to the bug
+    relevance_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ---------- Command-execution evidence ----------
     command_executed: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -108,7 +118,10 @@ class Evidence(db.Model):
             "description": self.description,
             "file_path": self.file_path,
             "line_number": self.line_number,
+            "line_number_end": self.line_number_end,
             "code_snippet": self.code_snippet,
+            "search_query": self.search_query,
+            "relevance_explanation": self.relevance_explanation,
             "command_executed": self.command_executed,
             "command_output": self.command_output,
             "exit_code": self.exit_code,

@@ -124,21 +124,38 @@ backend/
 Bug Report (POST /api/bugs)
     │
     ▼
-WorkflowOrchestrator.execute()      ← runs in background task
+Bug stored (status = RECEIVED)
+    │
+POST /api/bugs/<id>/start
+    │
+    ▼
+WorkflowOrchestrator.execute()      ← runs in background daemon thread
     │
     ├── InvestigationPipeline.run()
-    │   ├── gather_execution_context()  [machine-verified]
-    │   ├── extract_error_keywords()    [heuristic]
-    │   ├── search_source_files()       [machine-verified: file read]
-    │   ├── search_functions()          [machine-verified: file read]
-    │   ├── collect_file_evidence()     [machine-verified: file read]
-    │   └── AI.analyse()               [AI-generated, marked as such]
+    │   ├── _gather_execution_context()       [machine-verified: git log/status]
+    │   ├── _build_keywords()                 [heuristic: error + test + description]
+    │   ├── _resolve_test_focus()             [machine-verified: file existence check]
+    │   ├── _search_source_files()            [machine-verified: file read]
+    │   ├── _search_functions()               [machine-verified: file read]
+    │   ├── _collect_file_evidence()          [machine-verified: file read + line numbers]
+    │   │     Evidence carries: file_path, line_number, line_number_end,
+    │   │                       code_snippet, search_query, relevance_explanation
+    │   ├── _collect_command_evidence()       [machine-verified: git log, git status, grep]
+    │   └── AI.analyse()                      [AI-generated, marked as such]
+    │
+    │   Evidence items flushed to DB with IDs before RCA/fix generation
     │
     ├── RootCauseAnalyser.analyse()
-    │   └── AI.analyse()               [AI-generated, marked as such]
+    │   ├── AI.analyse()                      [AI-generated, marked as such]
+    │   ├── Produces: summary, suspected_cause, mechanism, affected_files/functions
+    │   ├── supporting_evidence_ids           [IDs of verified Evidence records]
+    │   └── status: confirmed_by_evidence | suspected | insufficient_evidence
     │
     └── FixGenerator.generate()
-        └── AI.generate_fix()          [AI-generated patch, PENDING approval]
+        ├── supporting_evidence_ids           [from verified Evidence records]
+        ├── affected_lines                    [from SOURCE_CODE evidence]
+        ├── confidence                        [AI-reported]
+        └── AI.generate_fix()                 [AI-generated patch, PENDING approval]
 
 Developer reviews patch via GET /api/fixes/<id>
 Developer approves via POST /api/fixes/<id>/approve
@@ -146,6 +163,32 @@ Fix applied via POST /api/fixes/<id>/apply   [only after APPROVED]
 
 [Team Member 2] POST /api/verification/run   → TestRun created
 [Team Member 3] GET  /api/reports/bug/<id>   → Report rendered
+```
+
+---
+
+## Bug Input Normalization
+
+BugProof supports three modes of bug input.  All modes use the same `POST /api/bugs` endpoint:
+
+| Input Mode | Fields used | Investigation focus |
+|---|---|---|
+| Description only | `description` | Keywords extracted from description text |
+| With error message | `description` + `error_message` | Error identifiers prioritised; description used for breadth |
+| With failing test | `description` + `extra_context.failing_test` | Test file resolved first; test function/module used as high-priority keywords |
+
+If multiple inputs are provided, all are combined (error_message keywords take priority over description keywords).
+
+### `failing_test` schema (inside `extra_context`)
+
+```json
+{
+  "failing_test": {
+    "file":     "tests/test_parser.py",
+    "function": "test_tokenize_empty",
+    "module":   "tests.test_parser"
+  }
+}
 ```
 
 ---
@@ -165,6 +208,11 @@ Facts confirmed by actual execution or file inspection:
 
 These are represented as `Evidence` records with `is_verified = True`.
 
+Additional fields on `Evidence` as of Member 1 milestone:
+- `line_number_end`: end of the line range when evidence spans multiple lines.
+- `search_query`: the keyword / search term that led to this evidence item.
+- `relevance_explanation`: why this evidence is relevant to the bug.
+
 ### AI-Generated Content (`ai_generated = True`, `is_verified = False`)
 
 Reasoning produced by an AI component that has **not** been machine-confirmed:
@@ -178,6 +226,32 @@ These are stored in `Investigation.suspected_cause`, `Investigation.root_cause_e
 
 **A piece of AI-generated content is NEVER represented as verified evidence.**  
 The `Investigation.root_cause_machine_supported` flag is only set to `True` when verified `Evidence` items exist that corroborate the AI's claim.
+
+---
+
+## Root Cause Analysis Status
+
+The `RootCauseAnalysis` now carries an explicit `status` field:
+
+| Status | Meaning |
+|---|---|
+| `confirmed_by_evidence` | Verified evidence exists AND AI confidence ≥ 0.7 |
+| `suspected` | Verified evidence exists but AI confidence < 0.7, OR AI unavailable |
+| `insufficient_evidence` | No verified evidence supports the suspected cause |
+
+The `supporting_evidence_ids` field contains the database IDs of the `Evidence` records that support the root cause.
+
+---
+
+## Fix Proposal Fields
+
+The `Fix` model as of Member 1 milestone includes:
+
+| Field | Type | Description |
+|---|---|---|
+| `supporting_evidence_ids` | `JSON` | IDs of verified Evidence records that justify this fix |
+| `affected_lines` | `JSON` | `[{file, line_start, line_end, description}]` from SOURCE_CODE evidence |
+| `confidence` | `Float` | AI-reported confidence in the fix |
 
 ---
 

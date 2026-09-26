@@ -22,6 +22,9 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import Optional
 
+# Module-level import so that tests can patch it.
+from backend.repositories import get_repository
+
 
 class RunStatus(str, PyEnum):
     """All possible states of a debugging run."""
@@ -123,6 +126,17 @@ class WorkflowOrchestrator:
 
         Must be called from a background task with an active Flask app context.
 
+        Steps:
+          1. Load bug from DB.
+          2. Create Investigation record (IN_PROGRESS).
+          3. Run InvestigationPipeline → collect evidence, hypotheses.
+          4. Persist all evidence and hypotheses.
+          5. Run RootCauseAnalyser → structured RCA with evidence IDs.
+          6. Update Investigation with RCA results.
+          7. Run FixGenerator → FixProposal with evidence IDs, affected lines.
+          8. Persist Fix (approval_status=PENDING).
+          9. Transition Bug to WAITING_FOR_APPROVAL.
+
         Args:
             bug_id: UUID of the Bug record to debug.
             app: The Flask application instance (for app context).
@@ -139,7 +153,6 @@ class WorkflowOrchestrator:
                 Evidence, EvidenceType, Hypothesis, Fix,
                 ApprovalStatus, ApplicationStatus,
             )
-            from backend.repositories import get_repository
             from backend.core.investigation import InvestigationPipeline
             from backend.core.root_cause import RootCauseAnalyser
             from backend.core.fix_generation import FixGenerator
@@ -168,15 +181,24 @@ class WorkflowOrchestrator:
                 repo = get_repository(bug.target_repository, self._workspace)
                 pipeline = InvestigationPipeline(repo, self._ai_investigator)
 
+                # Extract failing_test info from extra_context if provided
+                failing_test = None
+                if bug.extra_context and isinstance(bug.extra_context, dict):
+                    failing_test = bug.extra_context.get("failing_test")
+
                 inv_result = pipeline.run(
                     investigation_id=investigation.id,
                     bug_id=bug_id,
-                    error_message=bug.error_message or "",
                     description=bug.description,
+                    error_message=bug.error_message or None,
                     repository_ref=bug.repository_ref,
+                    failing_test=failing_test,
                 )
 
-                # Persist evidence
+                # ---- Persist evidence items ----
+                # We need to flush after each Evidence insertion so that
+                # the DB-generated ID is available for RCA/fix references.
+                db_evidence_ids: list[str] = []
                 for ev in inv_result.evidence:
                     db_ev = Evidence(
                         investigation_id=investigation.id,
@@ -185,7 +207,10 @@ class WorkflowOrchestrator:
                         is_verified=ev.is_verified,
                         file_path=ev.file_path,
                         line_number=ev.line_number,
+                        line_number_end=ev.line_number_end,
                         code_snippet=ev.code_snippet,
+                        search_query=ev.search_query,
+                        relevance_explanation=ev.relevance_explanation,
                         command_executed=ev.command_executed,
                         command_output=ev.command_output,
                         exit_code=ev.exit_code,
@@ -194,8 +219,21 @@ class WorkflowOrchestrator:
                         test_output=ev.test_output,
                     )
                     db.session.add(db_ev)
+                    db.session.flush()   # assigns db_ev.id
+                    db_evidence_ids.append(db_ev.id)
+                    # Backfill the evidence dict with the real DB id so
+                    # RCA and fix generator can reference it.
+                    ev_dict_with_id = ev.to_dict()
+                    ev_dict_with_id["id"] = db_ev.id
 
-                # Persist hypotheses
+                # Build a serialised evidence list with DB ids for RCA/fix
+                evidence_with_ids = []
+                for ev, db_id in zip(inv_result.evidence, db_evidence_ids):
+                    d = ev.to_dict()
+                    d["id"] = db_id
+                    evidence_with_ids.append(d)
+
+                # ---- Persist hypotheses ----
                 for h in inv_result.hypotheses:
                     db_h = Hypothesis(
                         investigation_id=investigation.id,
@@ -215,6 +253,8 @@ class WorkflowOrchestrator:
                 investigation.confidence = inv_result.confidence
                 investigation.execution_context = inv_result.execution_context
                 investigation.completed_at = inv_result.completed_at
+                if inv_result.error:
+                    investigation.error_details = inv_result.error
                 db.session.commit()
 
                 # ---- Step 2: ROOT_CAUSE_FOUND ----
@@ -227,8 +267,10 @@ class WorkflowOrchestrator:
                     investigation_id=investigation.id,
                     error_message=bug.error_message or "",
                     description=bug.description,
-                    evidence=[e.to_dict() for e in inv_result.evidence],
+                    evidence=evidence_with_ids,
                     hypotheses=inv_result.hypotheses,
+                    relevant_files=inv_result.relevant_files,
+                    relevant_functions=inv_result.relevant_functions,
                 )
 
                 # Update investigation with RCA results
@@ -236,6 +278,8 @@ class WorkflowOrchestrator:
                     investigation.suspected_cause = rca.suspected_cause
                 if rca.explanation:
                     investigation.root_cause_explanation = rca.explanation
+                if rca.confidence:
+                    investigation.confidence = rca.confidence
                 investigation.root_cause_machine_supported = rca.machine_corroborated
                 db.session.commit()
 
@@ -250,8 +294,9 @@ class WorkflowOrchestrator:
                     suspected_cause=rca.suspected_cause,
                     explanation=rca.explanation,
                     relevant_files=inv_result.relevant_files,
-                    evidence=[e.to_dict() for e in inv_result.evidence],
+                    evidence=evidence_with_ids,
                     repository_path=repo.repository_path,
+                    affected_functions=inv_result.relevant_functions,
                 )
 
                 fix = Fix(
@@ -260,6 +305,9 @@ class WorkflowOrchestrator:
                     explanation=proposal.explanation,
                     patch=proposal.patch,
                     files_changed=proposal.files_changed,
+                    affected_lines=proposal.affected_lines,
+                    supporting_evidence_ids=proposal.supporting_evidence_ids,
+                    confidence=proposal.confidence,
                     risk_info=proposal.risk_info,
                     approval_required=True,
                     approval_status=ApprovalStatus.PENDING,
@@ -278,7 +326,10 @@ class WorkflowOrchestrator:
 
             except Exception as exc:  # noqa: BLE001
                 run.fail(str(exc))
-                bug.status = BugStatus.FAILED
-                db.session.commit()
+                try:
+                    bug.status = BugStatus.FAILED
+                    db.session.commit()
+                except Exception:  # noqa: BLE001
+                    db.session.rollback()
 
         return run

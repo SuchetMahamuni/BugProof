@@ -1,0 +1,291 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BugProof Member 1 – End-to-End Test Report</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; background: #ffffff; color: #1f2328; padding: 32px 16px; }
+  .container { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 28px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 28px 0 10px; color: #1f2328; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+  h3 { font-size: 13px; font-weight: 600; margin: 16px 0 6px; color: #57606a; text-transform: uppercase; letter-spacing: 0.04em; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 13px; }
+  th { background: #f7f8fa; border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; font-weight: 600; color: #57606a; }
+  td { border: 1px solid #e5e7eb; padding: 6px 10px; vertical-align: top; }
+  tr:hover td { background: #fafbfc; }
+  .pass { color: #1a7f37; font-weight: 600; }
+  .fail { color: #cf222e; font-weight: 600; }
+  .warn { color: #9a6700; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .badge-pass { background: #dafbe1; color: #116329; }
+  .badge-fail { background: #ffd8d3; color: #82071e; }
+  .badge-warn { background: #fff8c5; color: #633c01; }
+  pre, code { font-family: "Consolas", "Courier New", monospace; font-size: 12px; background: #f7f8fa; border: 1px solid #e5e7eb; padding: 2px 5px; border-radius: 3px; }
+  pre { padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+  .bug-box { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 12px 14px; margin: 12px 0; }
+  .bug-box strong { color: #633c01; }
+  .ok-box { background: #dafbe1; border: 1px solid #56d364; border-radius: 4px; padding: 12px 14px; margin: 12px 0; }
+  .section { margin-bottom: 24px; }
+  .summary-row { display: flex; gap: 16px; margin: 12px 0; flex-wrap: wrap; }
+  .stat { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 18px; text-align: center; min-width: 100px; }
+  .stat .num { font-size: 28px; font-weight: 700; }
+  .stat .lbl { font-size: 11px; color: #57606a; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat.green .num { color: #1a7f37; }
+  .stat.red .num { color: #cf222e; }
+  .stat.orange .num { color: #9a6700; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #57606a; }
+  ul { padding-left: 18px; margin: 4px 0; }
+  li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>BugProof Member 1 — End-to-End Test Report</h1>
+<div class="subtitle">Branch: <code>feature/core-debugging</code>  |  Date: 26 Sep 2026  |  Environment: Windows 10 / Python 3.14.4 / PostgreSQL (local)</div>
+
+
+<div class="summary-row">
+  <div class="stat green"><div class="num">78</div><div class="lbl">Auto Tests Passed</div></div>
+  <div class="stat green"><div class="num">0</div><div class="lbl">Auto Tests Failed</div></div>
+  <div class="stat red"><div class="num">2</div><div class="lbl">Live API Failures</div></div>
+  <div class="stat orange"><div class="num">1</div><div class="lbl">Root Bug Found</div></div>
+</div>
+
+
+<div class="bug-box">
+  <strong>OVERALL VERDICT: The complete end-to-end flow does NOT work against the live PostgreSQL database.</strong><br />
+  The implementation logic is correct and all 78 automated tests pass using SQLite in-memory. However, the live PostgreSQL database schema is out of sync with the current models. Six columns added to <code>evidence.py</code> and <code>fix.py</code> were never migrated to the database, causing the entire investigation workflow to fail silently in the background thread, leaving bugs stuck in INVESTIGATING status permanently.
+</div>
+
+
+<h2>1. Environment</h2>
+<table>
+  <tr><th>Item</th><th>Status</th><th>Detail</th></tr>
+  <tr><td>PostgreSQL port 5432</td><td class="pass">REACHABLE</td><td>TCP connection confirmed (TcpTestSucceeded: True)</td></tr>
+  <tr><td>Flask app (port 5000)</td><td class="pass">RUNNING</td><td>Already running — Werkzeug/3.1.8 Python/3.14.4</td></tr>
+  <tr><td>GET /health</td><td class="pass">HTTP 200</td><td><code>{"status":"ok","service":"BugProof"}</code></td></tr>
+  <tr><td>workspace/repos directory</td><td class="warn">ABSENT</td><td>No repositories cloned — pipeline handles this gracefully (is_cloned=False path)</td></tr>
+  <tr><td>DB schema vs. models</td><td class="fail">MISMATCH</td><td>6 columns in models not present in DB — see Bug #1 below</td></tr>
+</table>
+
+
+<h2>2. Bug Creation (POST /api/bugs)</h2>
+<table>
+  <tr><th>Check</th><th>Result</th></tr>
+  <tr><td>POST with all fields → HTTP 201</td><td class="pass">PASS</td></tr>
+  <tr><td>Response contains id, status=RECEIVED, title, target_repository</td><td class="pass">PASS</td></tr>
+  <tr><td>error_message stored</td><td class="pass">PASS</td></tr>
+  <tr><td>extra_context (with failing_test) stored</td><td class="pass">PASS</td></tr>
+  <tr><td>GET /api/bugs/&lt;id&gt; returns stored data verbatim</td><td class="pass">PASS</td></tr>
+  <tr><td>POST with missing required fields → HTTP 400</td><td class="pass">PASS</td></tr>
+  <tr><td>POST with invalid target_repository → HTTP 400</td><td class="pass">PASS</td></tr>
+  <tr><td>GET /api/bugs/nonexistent → HTTP 404</td><td class="pass">PASS</td></tr>
+</table>
+
+<h3>Request Payload Used</h3>
+<pre>POST /api/bugs
+{
+  "title": "Live test: ValueError on empty tokenize",
+  "description": "The Parser.tokenize method returns None for empty string input...",
+  "target_repository": "thefuck",
+  "error_message": "ValueError: tokenize returned None",
+  "extra_context": {
+    "failing_test": { "file": "tests/test_parser.py", "function": "test_tokenize_empty", ... }
+  }
+}
+→ HTTP 201  bug_id: 95d3291e-0140-4be8-864d-25686b78fbd8</pre>
+
+
+<h2>3. Start Investigation (POST /api/bugs/&lt;id&gt;/start)</h2>
+<table>
+  <tr><th>Check</th><th>Result</th></tr>
+  <tr><td>POST → HTTP 202 Accepted</td><td class="pass">PASS</td></tr>
+  <tr><td>Response contains bug_id, status=INVESTIGATING, poll_urls</td><td class="pass">PASS</td></tr>
+  <tr><td>Investigation record created (IN_PROGRESS) immediately</td><td class="pass">PASS</td></tr>
+  <tr><td>Second /start (already INVESTIGATING) → HTTP 409</td><td class="pass">PASS</td></tr>
+  <tr><td>/start on non-existent bug → HTTP 404</td><td class="pass">PASS</td></tr>
+  <tr><td>Workflow completes (bug → WAITING_FOR_APPROVAL)</td><td class="fail">FAIL — see Bug #1</td></tr>
+</table>
+
+
+<div class="bug-box">
+  <strong>BUG #1 (CRITICAL): PostgreSQL schema out of sync with models — workflow fails silently</strong><br /><br />
+  <strong>Symptom:</strong> After POST /api/bugs/&lt;id&gt;/start, the bug status stays permanently at INVESTIGATING. The background thread silently fails and never transitions the bug to WAITING_FOR_APPROVAL.<br /><br />
+  <strong>Root Cause:</strong> <code>backend/models/evidence.py</code> and <code>backend/models/fix.py</code> were modified to add new columns, but no database migration was run against the live PostgreSQL database. When the orchestrator attempts to INSERT into the <code>evidence</code> table, PostgreSQL rejects with:<br />
+  <pre>psycopg.errors.UndefinedColumn: column "line_number_end" of relation "evidence" does not exist</pre>
+  <strong>Missing columns in PostgreSQL (vs. current models):</strong><br />
+  <ul>
+    <li><code>evidence</code> table: <code>line_number_end</code>, <code>search_query</code>, <code>relevance_explanation</code></li>
+    <li><code>fixes</code> table: <code>affected_lines</code>, <code>supporting_evidence_ids</code>, <code>confidence</code></li>
+  </ul>
+  <strong>Secondary symptom:</strong> The orchestrator's exception handler tries <code>bug.status = BugStatus.FAILED; db.session.commit()</code>, but this also fails because the DB session is in a broken transaction state (psycopg aborted transaction). The nested except catches this and calls <code>db.session.rollback()</code> which emits a SAWarning. Result: bug stays INVESTIGATING instead of FAILED.<br /><br />
+  <strong>Source files:</strong> <code>backend/models/evidence.py</code>, <code>backend/models/fix.py</code>, <code>backend/core/workflow/orchestrator.py</code> (exception handler)<br /><br />
+  <strong>Fix required:</strong> Run <code>flask db migrate</code> + <code>flask db upgrade</code> (or manually ALTER TABLE) to add the missing columns. No code change needed — models are correct.
+</div>
+
+
+<h2>4. Investigation Results (blocked by Bug #1)</h2>
+<table>
+  <tr><th>Check</th><th>Result</th></tr>
+  <tr><td>GET /api/investigations/bug/&lt;id&gt; → HTTP 200</td><td class="pass">PASS</td></tr>
+  <tr><td>Investigation record exists</td><td class="pass">PASS</td></tr>
+  <tr><td>Investigation status = COMPLETED</td><td class="fail">FAIL (stuck IN_PROGRESS)</td></tr>
+  <tr><td>GET /api/investigations/&lt;id&gt;/evidence → HTTP 200</td><td class="fail">FAIL — HTTP 500 (schema mismatch)</td></tr>
+  <tr><td>GET /api/investigations/&lt;id&gt;/hypotheses → HTTP 200</td><td class="pass">PASS</td></tr>
+  <tr><td>Evidence items contain is_verified, search_query, line_number_end, relevance_explanation</td><td class="fail">FAIL (schema mismatch prevents any evidence from being stored)</td></tr>
+</table>
+
+<p style="margin-top:8px;color:#57606a;font-size:13px">Note: The <code>/hypotheses</code> endpoint works because it queries a different table (<code>hypotheses</code>) that has no schema mismatch. The <code>/evidence</code> endpoint crashes because SQLAlchemy's SELECT includes <code>evidence.line_number_end</code> which doesn't exist in the DB.</p>
+
+
+<h2>5. Evidence Validation</h2>
+<p>Cannot be performed against live database due to schema mismatch. However, the pipeline logic was validated directly:</p>
+<ul>
+  <li>When repo is not cloned: pipeline records a single COMMAND_OUTPUT evidence item with <code>is_verified=True</code>, <code>command_output="UNAVAILABLE: repository not present on disk."</code> — no fabrication</li>
+  <li>When repo IS cloned: SOURCE_CODE evidence items are read from actual files (machine-verified), COMMAND_OUTPUT evidence records exact commands executed and their real output</li>
+  <li>All SOURCE_CODE evidence file_paths are verified to exist on disk before being recorded (<code>test_pipeline_evidence_never_fabricates_file_paths</code> passes)</li>
+  <li>The pipeline explicitly never fabricates paths, line numbers, command results, or repository facts</li>
+</ul>
+
+
+<h2>6. RCA Validation</h2>
+<p>RCA fields implemented in the current design:</p>
+<table>
+  <tr><th>Field</th><th>Present</th><th>Notes</th></tr>
+  <tr><td>summary</td><td class="pass">YES</td><td>AI-generated (marked as such)</td></tr>
+  <tr><td>suspected_cause</td><td class="pass">YES</td><td>AI-generated; falls back to "[AI NOT CONFIGURED]" without AI</td></tr>
+  <tr><td>explanation / root_cause_explanation</td><td class="pass">YES</td><td>AI-generated</td></tr>
+  <tr><td>mechanism</td><td class="pass">YES</td><td>In RootCauseAnalysis object; merged into investigation.root_cause_explanation</td></tr>
+  <tr><td>affected_files</td><td class="pass">YES</td><td>Machine-gathered from relevant_files + source-code evidence</td></tr>
+  <tr><td>affected_functions</td><td class="pass">YES</td><td>Machine-gathered from function search</td></tr>
+  <tr><td>supporting_evidence_ids</td><td class="pass">YES</td><td>Only verified (is_verified=True) evidence IDs are included</td></tr>
+  <tr><td>confidence</td><td class="pass">YES</td><td>AI-reported; 0.0 without AI</td></tr>
+  <tr><td>status</td><td class="pass">YES</td><td>confirmed_by_evidence / suspected / insufficient_evidence</td></tr>
+  <tr><td>ai_generated flag</td><td class="pass">YES</td><td>Always True for AI output; machine evidence never mixed in as AI</td></tr>
+  <tr><td>machine_corroborated flag</td><td class="pass">YES</td><td>True only when verified evidence exists</td></tr>
+</table>
+<div class="ok-box">RCA correctly marks AI-generated claims as hypotheses / insufficient_evidence when no verified machine evidence exists. Unsupported conclusions are never promoted to "confirmed". This was validated by 6 automated RCA tests, all passing.</div>
+
+
+<h2>7. Fix Proposal</h2>
+<table>
+  <tr><th>Check</th><th>Result</th></tr>
+  <tr><td>GET /api/fixes/investigation/&lt;id&gt; → HTTP 200</td><td class="fail">FAIL — HTTP 500 (schema mismatch: missing affected_lines, supporting_evidence_ids, confidence columns in fixes table)</td></tr>
+  <tr><td>Fix has approval_status=PENDING at creation</td><td class="pass">PASS (automated test)</td></tr>
+  <tr><td>Fix has ai_generated=True</td><td class="pass">PASS (automated test)</td></tr>
+  <tr><td>Fix has supporting_evidence_ids (verified only)</td><td class="pass">PASS (automated test)</td></tr>
+  <tr><td>Fix has affected_lines from source evidence</td><td class="pass">PASS (automated test)</td></tr>
+  <tr><td>Fix has files_changed, explanation, risk_info</td><td class="pass">PASS (automated test)</td></tr>
+</table>
+
+
+<h2>8. Safety / Approval Gate</h2>
+<table>
+  <tr><th>Check</th><th>Result</th></tr>
+  <tr><td>POST /api/fixes/&lt;id&gt;/apply while PENDING → HTTP 409</td><td class="pass">PASS (automated test + API logic confirmed)</td></tr>
+  <tr><td>Error message mentions APPROVED requirement</td><td class="pass">PASS</td></tr>
+  <tr><td>Repository NOT modified by investigation or fix generation</td><td class="pass">PASS — repository was never touched (is_cloned=False; even if cloned, fix generation only proposes a patch, never applies it)</td></tr>
+  <tr><td>POST /api/fixes/&lt;id&gt;/approve → HTTP 200, approval_status=APPROVED</td><td class="pass">PASS (automated test)</td></tr>
+  <tr><td>approved_by and approved_at set</td><td class="pass">PASS</td></tr>
+  <tr><td>Double approve → HTTP 409</td><td class="pass">PASS</td></tr>
+  <tr><td>POST /api/fixes/&lt;id&gt;/reject → HTTP 200, approval_status=REJECTED</td><td class="pass">PASS (automated test)</td></tr>
+  <tr><td>Apply after approval uses git apply --check (dry-run) first</td><td class="pass">PASS (code confirmed in fixes.py + generator.py)</td></tr>
+</table>
+<div class="ok-box">The approval gate is fully implemented and enforced. A fix in PENDING state cannot be applied — HTTP 409 is returned. The code path is: validate_patch (git apply --check) → apply (git apply). No automatic application ever occurs.</div>
+
+
+<h2>9. Database Persistence</h2>
+<table>
+  <tr><th>Entity</th><th>Status</th><th>Detail</th></tr>
+  <tr><td>Bug → stored, retrieved</td><td class="pass">VERIFIED</td><td>All fields including JSON extra_context round-trip correctly</td></tr>
+  <tr><td>Investigation → stored</td><td class="pass">PARTIAL</td><td>Record created in DB; status stuck IN_PROGRESS due to schema bug</td></tr>
+  <tr><td>Evidence → stored</td><td class="fail">BLOCKED</td><td>INSERT fails (line_number_end column missing in DB)</td></tr>
+  <tr><td>Hypotheses → stored</td><td class="fail">BLOCKED</td><td>Never reached (pipeline fails before hypothesis step)</td></tr>
+  <tr><td>Fix Proposal → stored</td><td class="fail">BLOCKED</td><td>Never reached</td></tr>
+  <tr><td>Approval state transition</td><td class="pass">VERIFIED</td><td>approve/reject/409 logic confirmed via automated tests</td></tr>
+  <tr><td>Application state transition</td><td class="pass">VERIFIED</td><td>Logic confirmed via automated tests</td></tr>
+</table>
+
+<h3>Test Data Created in Live PostgreSQL DB</h3>
+<table>
+  <tr><th>Type</th><th>ID</th><th>Title / Note</th><th>Status</th></tr>
+  <tr><td>Bug</td><td><code>2e271297-…</code></td><td>NoneType object has no attribute split in Parser.tokenize</td><td>INVESTIGATING (stuck)</td></tr>
+  <tr><td>Bug</td><td><code>faab6820-…</code></td><td>Test orchestrator bug (diagnostic script)</td><td>INVESTIGATING (stuck)</td></tr>
+  <tr><td>Bug</td><td><code>95d3291e-…</code></td><td>Live test: ValueError on empty tokenize</td><td>INVESTIGATING (stuck)</td></tr>
+  <tr><td>Investigation</td><td><code>b58cc15c-…</code></td><td>Linked to bug 2e271297</td><td>IN_PROGRESS (stuck)</td></tr>
+  <tr><td>Investigation</td><td><code>0435b437-…</code></td><td>Linked to bug faab6820</td><td>IN_PROGRESS (stuck)</td></tr>
+  <tr><td>Investigation</td><td><code>caa40690-…</code></td><td>Linked to bug 95d3291e</td><td>IN_PROGRESS (stuck)</td></tr>
+</table>
+<p style="margin-top:6px;font-size:13px;color:#57606a">These records are harmless but reflect the stuck-workflow failure. No production data was affected.</p>
+
+
+<h2>10. Automated Test Suite</h2>
+<div class="summary-row">
+  <div class="stat green"><div class="num">51</div><div class="lbl">test_member1_milestone.py</div></div>
+  <div class="stat green"><div class="num">27</div><div class="lbl">test_foundation.py</div></div>
+  <div class="stat green"><div class="num">78</div><div class="lbl">Total Passed</div></div>
+  <div class="stat green"><div class="num">0</div><div class="lbl">Failed / Errors</div></div>
+</div>
+<pre>cd backend
+python -m pytest tests/test_member1_milestone.py tests/test_foundation.py -v
+→ 78 passed in 6.95s</pre>
+<p>All tests use SQLite in-memory via <code>db.create_all()</code> which creates the correct schema from the current models. This confirms the implementation logic is sound — the only failure is the live PostgreSQL schema drift.</p>
+
+<h3>Test Coverage Highlights</h3>
+<ul>
+  <li>Bug CRUD + validation (8 tests)</li>
+  <li>Investigation start endpoint (4 tests)</li>
+  <li>InvestigationPipeline: file search, evidence collection, command evidence, failing-test focus, uncloned repo, anti-fabrication (9 tests)</li>
+  <li>RootCauseAnalyser: evidence-id references, AI/no-AI paths, status rules (6 tests)</li>
+  <li>FixGenerator: pending status, no auto-apply, evidence-id references, affected_lines, AI integration (6 tests)</li>
+  <li>Fix approval gate API: PENDING→APPROVED, PENDING→REJECTED, double-approve 409, apply without approval 409 (7 tests)</li>
+  <li>Evidence persistence (2 tests)</li>
+  <li>Full WorkflowOrchestrator integration (4 tests)</li>
+  <li>API round-trip (1 test)</li>
+  <li>Field-presence sanity (3 tests)</li>
+</ul>
+
+
+<h2>11. Failures / Bugs Discovered</h2>
+
+<div class="bug-box">
+  <strong>BUG #1 [CRITICAL] — PostgreSQL schema out of sync with models</strong><br />
+  <strong>Files:</strong> <code>backend/models/evidence.py</code>, <code>backend/models/fix.py</code><br />
+  <strong>DB table: evidence</strong> — missing columns: <code>line_number_end</code>, <code>search_query</code>, <code>relevance_explanation</code><br />
+  <strong>DB table: fixes</strong> — missing columns: <code>affected_lines</code>, <code>supporting_evidence_ids</code>, <code>confidence</code><br />
+  <strong>Impact:</strong> The entire investigation workflow fails. All live API calls to <code>/api/investigations/&lt;id&gt;/evidence</code> and <code>/api/fixes/investigation/&lt;id&gt;</code> return HTTP 500. Bugs stay permanently stuck in INVESTIGATING status.<br />
+  <strong>Fix:</strong> Run <code>flask db migrate -m "add missing evidence and fix columns"</code> then <code>flask db upgrade</code>, OR manually: <code>ALTER TABLE evidence ADD COLUMN line_number_end INTEGER; ALTER TABLE evidence ADD COLUMN search_query TEXT; ALTER TABLE evidence ADD COLUMN relevance_explanation TEXT; ALTER TABLE fixes ADD COLUMN affected_lines JSON; ALTER TABLE fixes ADD COLUMN supporting_evidence_ids JSON; ALTER TABLE fixes ADD COLUMN confidence FLOAT;</code>
+</div>
+
+<div class="bug-box">
+  <strong>BUG #2 [MINOR] — Silent failure when orchestrator exception handler cannot commit</strong><br />
+  <strong>File:</strong> <code>backend/core/workflow/orchestrator.py</code> lines 327–333<br />
+  <strong>Issue:</strong> The exception handler attempts <code>bug.status = BugStatus.FAILED; db.session.commit()</code> inside a nested try/except. When the outer exception leaves the session in a broken transaction, this commit also fails, the nested except calls <code>db.session.rollback()</code> (which emits a SAWarning), and the bug status remains stuck at INVESTIGATING instead of being set to FAILED. This makes diagnosing failed runs very difficult.<br />
+  <strong>Recommended fix:</strong> Call <code>db.session.rollback()</code> first, then re-open a fresh commit to set the FAILED status.
+</div>
+
+
+<h2>12. Missing Functionality</h2>
+<ul>
+  <li><strong>No database migration infrastructure</strong> — the <code>backend/database/migrations/</code> directory exists but contains only a <code>.gitkeep</code>. Flask-Migrate is wired up but no migrations have been created. Any model change requires a manual ALTER TABLE or the entire schema must be dropped and recreated.</li>
+  <li><strong>No workspace/repos directory</strong> — target repositories (thefuck, tqdm, youtube-dl) are not cloned. The pipeline handles this gracefully but the end-to-end flow cannot collect real source-code evidence until repos are cloned.</li>
+  <li><strong>No AI component configured</strong> — WATSONX_URL/PROJECT_ID are not set. The system correctly falls back to "[AI NOT CONFIGURED]" placeholders and machine-only evidence, but AI-assisted RCA and fix generation are unavailable.</li>
+</ul>
+
+
+<h2>13. Recommended Actions (Priority Order)</h2>
+<ol style="padding-left:18px">
+  <li style="margin:4px 0"><strong>[Critical]</strong> Apply the missing DB columns via ALTER TABLE (or recreate schema with <code>flask db upgrade</code> after generating migrations). This unblocks the entire live workflow.</li>
+  <li style="margin:4px 0"><strong>[Minor]</strong> Fix the exception handler in <code>orchestrator.py</code> to call <code>db.session.rollback()</code> before attempting a new commit to set FAILED status.</li>
+  <li style="margin:4px 0"><strong>[Enhancement]</strong> Create and commit an initial Flask-Migrate migration so future model changes are tracked and repeatable.</li>
+  <li style="margin:4px 0"><strong>[Enhancement]</strong> Clone at least one target repository to <code>workspace/repos/</code> to enable full evidence collection in live testing.</li>
+</ol>
+
+<footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, JSON, Enum as SAEnum
+from sqlalchemy import String, Text, Float, Boolean, DateTime, ForeignKey, JSON, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.connection import db
@@ -72,6 +72,17 @@ class Fix(db.Model):
 
     # List of file paths changed by this fix
     files_changed: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Specific lines or code regions affected by the fix
+    # List of {file, line_start, line_end, description} dicts
+    affected_lines: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Evidence IDs that directly support this fix proposal.
+    # These are IDs of Evidence records (is_verified=True).
+    supporting_evidence_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # AI-reported confidence in this fix [0.0, 1.0]
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Risk assessment produced by the AI (e.g., {"level": "low", "notes": "..."})
     risk_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -130,6 +141,9 @@ class Fix(db.Model):
             "explanation": self.explanation,
             "patch": self.patch,
             "files_changed": self.files_changed,
+            "affected_lines": self.affected_lines,
+            "supporting_evidence_ids": self.supporting_evidence_ids,
+            "confidence": self.confidence,
             "risk_info": self.risk_info,
             "approval_required": self.approval_required,
             "approval_status": self.approval_status,

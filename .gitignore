@@ -118,3 +118,13 @@ build/
 # DO NOT REMOVE ABOVE PATTERNS
 # Add project-specific patterns below
 # ============================================
+# ============================================
+# Project-specific patterns (BugProof)
+# ============================================
+
+# Checked-out target repositories (can be large; re-cloned on setup)
+workspace/repos/
+
+# Migration test databases
+*.db
+
