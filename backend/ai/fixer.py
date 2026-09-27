@@ -81,6 +81,30 @@ class AIFixer:
 
         # Integration point: watsonx API call goes here.
         # Credentials must come from environment variables only.
-        raise NotImplementedError(
-            "watsonx AI fix generation not yet implemented."
+        #
+        # The watsonx client library is not yet installed/configured.
+        # Return a clearly-labelled stub so the workflow can create a Fix
+        # record with approval_status=PENDING (no auto-apply) and the caller
+        # can see the AI was configured but the integration is incomplete.
+        import logging
+        logging.getLogger(__name__).warning(
+            "watsonx AI fixer is configured but live integration is not yet "
+            "implemented.  Returning stub response."
         )
+        return {
+            "explanation": (
+                "[AI CONFIGURED BUT NOT INTEGRATED] "
+                "watsonx credentials detected but the fix generation API call "
+                "is not yet implemented.  Install and configure the watsonx "
+                "client library to enable AI-generated patches."
+            ),
+            "patch": "",
+            "files_changed": [],
+            "risk_info": {
+                "level": "unknown",
+                "notes": (
+                    "AI fixer configured but integration not yet complete.  "
+                    "No patch was generated."
+                ),
+            },
+        }
