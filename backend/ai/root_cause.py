@@ -74,6 +74,25 @@ class AIRootCause:
 
         # Integration point: watsonx API call goes here.
         # Source credentials from environment variables only.
-        raise NotImplementedError(
-            "watsonx AI root cause integration not yet implemented."
+        #
+        # The watsonx client library is not yet installed/configured.
+        # Return a clearly-labelled stub rather than raising, so the workflow
+        # can reach a terminal state and the caller can record the failure.
+        import logging
+        logging.getLogger(__name__).warning(
+            "watsonx AI root cause analyser is configured but live integration "
+            "is not yet implemented.  Returning stub response."
         )
+        return {
+            "suspected_cause": (
+                "[AI CONFIGURED BUT NOT INTEGRATED] "
+                "watsonx credentials detected but the root cause API call is not "
+                "yet implemented."
+            ),
+            "explanation": (
+                "[AI CONFIGURED BUT NOT INTEGRATED] "
+                "Install and configure the watsonx client library to enable "
+                "AI-generated root cause explanations."
+            ),
+            "confidence": 0.0,
+        }

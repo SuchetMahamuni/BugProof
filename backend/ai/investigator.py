@@ -87,10 +87,37 @@ class AIInvestigator:
         # Example:
         #   api_key = os.environ["WATSONX_API_KEY"]
         #   response = _call_watsonx(self._url, api_key, self._project_id, prompt)
-        raise NotImplementedError(
-            "watsonx AI integration not yet implemented. "
-            "Set WATSONX_URL and WATSONX_PROJECT_ID to enable."
+        #
+        # The watsonx client library is not yet installed/configured in this
+        # environment.  Rather than raising NotImplementedError (which would
+        # crash the pipeline and leave the Investigation stuck IN_PROGRESS),
+        # we return a clearly-labelled stub so the workflow can complete and
+        # the failure is visible in the Investigation's summary field.
+        import logging
+        logging.getLogger(__name__).warning(
+            "watsonx AI investigator is configured (WATSONX_URL/WATSONX_PROJECT_ID "
+            "present) but the live integration is not yet implemented.  "
+            "Returning stub response."
         )
+        return {
+            "summary": (
+                "[AI CONFIGURED BUT NOT INTEGRATED] "
+                "watsonx credentials detected but the API integration is not yet "
+                "implemented.  Investigation completed using machine-gathered evidence only."
+            ),
+            "suspected_cause": (
+                "[AI CONFIGURED BUT NOT INTEGRATED] "
+                "Live watsonx call not yet available.  Connect the watsonx client "
+                "library to enable AI-assisted root cause analysis."
+            ),
+            "root_cause_explanation": (
+                "[AI CONFIGURED BUT NOT INTEGRATED] "
+                "Set WATSONX_URL and WATSONX_PROJECT_ID AND install the watsonx "
+                "client library to enable this field."
+            ),
+            "confidence": 0.0,
+            "hypotheses": [],
+        }
 
     @staticmethod
     def _stub_response(error_message: str) -> dict:

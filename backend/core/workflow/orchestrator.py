@@ -16,6 +16,7 @@ a Celery worker or a thread) rather than from a Flask request handler.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -24,6 +25,8 @@ from typing import Optional
 
 # Module-level import so that tests can patch it.
 from backend.repositories import get_repository
+
+logger = logging.getLogger(__name__)
 
 
 class RunStatus(str, PyEnum):
@@ -163,6 +166,10 @@ class WorkflowOrchestrator:
                 run.fail(f"Bug {bug_id!r} not found in database.")
                 return run
 
+            # investigation is declared here so the except block can always
+            # reference it, even if the exception fires before it is created.
+            investigation = None
+
             try:
                 # ---- Step 1: INVESTIGATING ----
                 run.transition(RunStatus.INVESTIGATING, step="investigation")
@@ -194,6 +201,14 @@ class WorkflowOrchestrator:
                     repository_ref=bug.repository_ref,
                     failing_test=failing_test,
                 )
+
+                # Surface pipeline-internal errors as exceptions so the outer
+                # handler transitions to FAILED.  A non-None error means the
+                # pipeline caught an exception; we must not treat it as success.
+                if inv_result.error:
+                    raise RuntimeError(
+                        f"Investigation pipeline error: {inv_result.error}"
+                    )
 
                 # ---- Persist evidence items ----
                 # We need to flush after each Evidence insertion so that
@@ -325,11 +340,34 @@ class WorkflowOrchestrator:
                 # Workflow pauses here – approval is handled via the API.
 
             except Exception as exc:  # noqa: BLE001
+                # Log with context but without exposing secrets.
+                logger.error(
+                    "Workflow failed for bug %r at step %r: %s",
+                    bug_id,
+                    run.current_step,
+                    exc,
+                    exc_info=True,
+                )
                 run.fail(str(exc))
+
+                # Bring Bug and Investigation to consistent terminal FAILED
+                # states.  Roll back any uncommitted partial work first, then
+                # write the final states in a single transaction.
                 try:
+                    db.session.rollback()
                     bug.status = BugStatus.FAILED
+                    if investigation is not None:
+                        investigation.status = InvestigationStatus.FAILED
+                        investigation.error_details = str(exc)
+                        if investigation.completed_at is None:
+                            investigation.completed_at = datetime.now(timezone.utc)
                     db.session.commit()
-                except Exception:  # noqa: BLE001
+                except Exception as commit_exc:  # noqa: BLE001
+                    logger.error(
+                        "Failed to persist FAILED state for bug %r: %s",
+                        bug_id,
+                        commit_exc,
+                    )
                     db.session.rollback()
 
         return run
