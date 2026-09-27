@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BugProof — Bug Submission</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      background: #f0f2f5;
+      color: #1f2328;
+      min-height: 100vh;
+      padding: 32px 16px 64px;
+    }
+
+    .page-header {
+      max-width: 720px;
+      margin: 0 auto 28px;
+    }
+    .page-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1f2328;
+      letter-spacing: -0.3px;
+    }
+    .page-header p {
+      margin-top: 4px;
+      color: #57606a;
+      font-size: 13px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 720px;
+      margin: 0 auto 20px;
+    }
+    .card h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 18px;
+      color: #1f2328;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 5px;
+      color: #1f2328;
+    }
+    .form-group label .optional {
+      font-weight: 400;
+      color: #57606a;
+      margin-left: 4px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: #1f2328;
+      transition: border-color 0.15s;
+      appearance: auto;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #3b82d4;
+    }
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .form-group textarea.tall {
+      min-height: 110px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: #3b82d4;
+      color: #fff;
+    }
+    .btn-primary:not(:disabled):hover { background: #2f6dbf; }
+
+    .btn-secondary {
+      background: #f7f8fa;
+      color: #1f2328;
+      border: 1px solid #d0d7de;
+    }
+    .btn-secondary:not(:disabled):hover { background: #eef0f3; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+    }
+    .spinner.dark {
+      border-color: rgba(31,35,40,0.2);
+      border-top-color: #1f2328;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Status / message area */
+    .msg {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-top: 14px;
+    }
+    .msg.error {
+      background: #fff0f0;
+      border: 1px solid #f5c6c6;
+      color: #a12121;
+    }
+    .msg.info {
+      background: #f0f6ff;
+      border: 1px solid #bdd5f5;
+      color: #1f4788;
+    }
+    .msg.warning {
+      background: #fffbea;
+      border: 1px solid #f0d070;
+      color: #7a5500;
+    }
+    .msg.success {
+      background: #f0faf0;
+      border: 1px solid #a8d8a8;
+      color: #1a5c1a;
+    }
+
+    /* Status section */
+    #status-section { display: none; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .status-RECEIVED       { background: #f0f6ff; color: #1f4788; border: 1px solid #bdd5f5; }
+    .status-INVESTIGATING  { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .status-ROOT_CAUSE_FOUND { background: #f0f6ff; color: #1f4788; border: 1px solid #bdd5f5; }
+    .status-FIX_GENERATED  { background: #f0f6ff; color: #1f4788; border: 1px solid #bdd5f5; }
+    .status-WAITING_FOR_APPROVAL { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .status-FIX_APPLIED    { background: #f0faf0; color: #1a5c1a; border: 1px solid #a8d8a8; }
+    .status-VERIFYING      { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .status-COMPLETED      { background: #f0faf0; color: #1a5c1a; border: 1px solid #a8d8a8; }
+    .status-FAILED         { background: #fff0f0; color: #a12121; border: 1px solid #f5c6c6; }
+    .status-CANCELLED      { background: #f7f8fa; color: #57606a; border: 1px solid #d0d7de; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .status-row .label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #57606a;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 16px;
+      font-size: 13px;
+    }
+    .meta-grid .key {
+      color: #57606a;
+      white-space: nowrap;
+    }
+    .meta-grid .val {
+      color: #1f2328;
+      word-break: break-all;
+    }
+    .meta-grid .val.mono {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .investigation-row {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .investigation-row h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #57606a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ai-note {
+      font-size: 12px;
+      color: #57606a;
+      font-style: italic;
+      margin-top: 6px;
+    }
+
+    .poll-row {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .poll-note {
+      font-size: 12px;
+      color: #57606a;
+    }
+
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 4px 0 16px; }
+
+    /* ── Workflow Timeline ────────────────────────────────────────────── */
+    #workflow-card { display: none; }
+
+    .timeline {
+      list-style: none;
+      position: relative;
+      padding: 4px 0 0 0;
+      margin: 0;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 13px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: #e5e7eb;
+    }
+    .tl-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      position: relative;
+      padding: 6px 0;
+    }
+    .tl-dot {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      position: relative;
+      z-index: 1;
+      border: 2px solid transparent;
+    }
+    .tl-dot.pending   { background: #f7f8fa; border-color: #d0d7de; color: #57606a; }
+    .tl-dot.current   { background: #fff8e6; border-color: #f0c050; color: #7a5500; box-shadow: 0 0 0 3px rgba(240,192,80,0.25); }
+    .tl-dot.completed { background: #f0faf0; border-color: #5cb85c; color: #1a5c1a; }
+    .tl-dot.failed    { background: #fff0f0; border-color: #d9534f; color: #a12121; }
+    .tl-body    { flex: 1; min-width: 0; padding-top: 4px; }
+    .tl-label   { font-size: 13px; font-weight: 500; line-height: 1.4; }
+    .tl-label.pending   { color: #57606a; }
+    .tl-label.current   { color: #7a5500; font-weight: 600; }
+    .tl-label.completed { color: #1a5c1a; }
+    .tl-label.failed    { color: #a12121; }
+    .tl-detail  { font-size: 12px; color: #57606a; margin-top: 2px; }
+    .tl-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 10px;
+      letter-spacing: 0.2px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .tl-pill.current { background: #fff3cd; color: #7a5500; border: 1px solid #f0d070; }
+    .tl-pill.failed  { background: #fff0f0; color: #a12121; border: 1px solid #f5c6c6; }
+    .tl-loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #57606a;
+      padding: 8px 0;
+    }
+    #workflow-refresh-row {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #workflow-msg { margin-top: 10px; }
+
+    /* ── Developer Approval Card ──────────────────────────────────────── */
+    #approval-card { display: none; }
+
+    .approval-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #57606a;
+      margin: 18px 0 8px;
+    }
+
+    .patch-block {
+      background: #f7f8fa;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 280px;
+      overflow-y: auto;
+      color: #1f2328;
+    }
+
+    .evidence-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .evidence-list li {
+      font-size: 12px;
+      color: #57606a;
+      padding: 3px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .evidence-list li:last-child { border-bottom: none; }
+
+    .approval-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .btn-approve {
+      background: #2da44e;
+      color: #fff;
+    }
+    .btn-approve:not(:disabled):hover { background: #258340; }
+
+    .btn-reject {
+      background: #fff;
+      color: #a12121;
+      border: 1px solid #d9534f;
+    }
+    .btn-reject:not(:disabled):hover { background: #fff0f0; }
+
+    /* ── Final Result Summary ─────────────────────────────────────────── */
+    #result-card { display: none; }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .result-table th {
+      text-align: left;
+      font-weight: 600;
+      color: #57606a;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 6px 10px 6px 0;
+      border-bottom: 1px solid #e5e7eb;
+      width: 46%;
+    }
+    .result-table td {
+      padding: 7px 10px 7px 0;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+    }
+    .result-table tr:last-child td { border-bottom: none; }
+
+    .result-pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pill-ok      { background: #f0faf0; color: #1a5c1a; border: 1px solid #a8d8a8; }
+    .pill-fail    { background: #fff0f0; color: #a12121; border: 1px solid #f5c6c6; }
+    .pill-pending { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .pill-none    { background: #f7f8fa; color: #57606a; border: 1px solid #d0d7de; }
+
+    #approval-msg { margin-top: 10px; }
+    #result-msg   { margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>BugProof</h1>
+  <p>Submit a bug for automated investigation and root-cause analysis.</p>
+</header>
+
+<!-- ── Bug Submission Form ─────────────────────────────────── -->
+<section class="card" id="submit-card">
+  <h2>Submit a Bug</h2>
+
+  <div class="form-group">
+    <label for="bug-title">Title</label>
+    <input type="text" id="bug-title" placeholder="Short summary of the bug" />
+  </div>
+
+  <div class="form-group">
+    <label for="bug-description">Description</label>
+    <textarea id="bug-description" class="tall" placeholder="Describe the bug in detail…"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="bug-repo">Target Repository</label>
+    <select id="bug-repo">
+      <option value="">— select a repository —</option>
+      <option value="thefuck">thefuck</option>
+      <option value="tqdm">tqdm</option>
+      <option value="youtube_dl">youtube_dl</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="bug-error">
+      Error Message / Traceback
+      <span class="optional">(optional)</span>
+    </label>
+    <textarea id="bug-error" placeholder="Paste the raw error or traceback here…"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="bug-context">
+      Additional Context
+      <span class="optional">(optional — steps to reproduce, environment info, failing test, command…)</span>
+    </label>
+    <textarea id="bug-context" placeholder="Any extra context that may help the investigation…"></textarea>
+  </div>
+
+  <div class="button-row">
+    <button class="btn-primary" id="btn-submit" onclick="submitBug()">
+      Submit Bug
+    </button>
+  </div>
+
+  <div id="submit-msg"></div>
+</section>
+
+<!-- ── Investigation Control ──────────────────────────────── -->
+<section class="card" id="investigate-card" style="display:none">
+  <h2>Start Investigation</h2>
+
+  <p style="font-size:13px;color:#57606a;margin-bottom:16px;">
+    Bug submitted successfully. Start the automated investigation pipeline when ready.
+  </p>
+
+  <div class="meta-grid" id="bug-meta" style="margin-bottom:16px;"></div>
+
+  <div class="button-row">
+    <button class="btn-primary" id="btn-investigate" onclick="startInvestigation()">
+      Start Investigation
+    </button>
+    <button class="btn-secondary" id="btn-refresh" onclick="refreshStatus()" style="display:none">
+      <span class="spinner dark" style="display:none" id="refresh-spinner"></span>
+      Refresh Status
+    </button>
+  </div>
+
+  <div id="investigate-msg"></div>
+</section>
+
+<!-- ── Current Status ─────────────────────────────────────── -->
+<section class="card" id="status-section">
+  <h2>Current Status</h2>
+
+  <div class="status-row">
+    <span class="label">Bug:</span>
+    <span id="status-badge" class="status-badge"></span>
+  </div>
+
+  <div class="meta-grid" id="status-meta"></div>
+
+  <div id="investigation-section" class="investigation-row" style="display:none">
+    <h3>Latest Investigation</h3>
+    <div class="meta-grid" id="inv-meta"></div>
+    <div id="inv-ai-note" class="ai-note" style="display:none"></div>
+  </div>
+
+  <div class="poll-row" id="poll-row" style="display:none">
+    <button class="btn-secondary" onclick="refreshStatus()">
+      <span class="spinner dark" style="display:none" id="poll-spinner"></span>
+      Refresh Status
+    </button>
+    <span class="poll-note">Investigation is running — refresh to check for updates.</span>
+  </div>
+
+  <div id="status-msg"></div>
+</section>
+
+<!-- ── Workflow Progress Timeline ─────────────────────────────── -->
+<section class="card" id="workflow-card">
+  <h2>Workflow Progress</h2>
+
+  <div id="workflow-timeline-loading" class="tl-loading" style="display:none">
+    <span class="spinner dark"></span>
+    Loading workflow state…
+  </div>
+
+  <ul class="timeline" id="workflow-timeline"></ul>
+
+  <div id="workflow-refresh-row" style="display:none">
+    <button class="btn-secondary" onclick="refreshWorkflow()">
+      <span class="spinner dark" style="display:none" id="workflow-spinner"></span>
+      Refresh
+    </button>
+    <span class="poll-note" id="workflow-poll-note"></span>
+  </div>
+
+  <div id="workflow-msg"></div>
+</section>
+
+<!-- ── Developer Approval & Fix Inspection ───────────────────────────────── -->
+<section class="card" id="approval-card">
+  <h2>Developer Approval</h2>
+
+  <!-- Fix summary -->
+  <p class="approval-section-title">Proposed Fix</p>
+  <div class="meta-grid" id="approval-fix-meta"></div>
+
+  <!-- Patch diff -->
+  <p class="approval-section-title" id="approval-patch-title" style="display:none">Patch / Diff</p>
+  <pre class="patch-block" id="approval-patch" style="display:none"></pre>
+  <p id="approval-no-patch" style="display:none;font-size:13px;color:#a12121;margin-top:6px;">
+    ⚠ No fix patch available.
+  </p>
+
+  <!-- Supporting evidence -->
+  <p class="approval-section-title" id="approval-evidence-title" style="display:none">Supporting Evidence</p>
+  <ul class="evidence-list" id="approval-evidence-list"></ul>
+
+  <!-- Approval status (read from backend) -->
+  <p class="approval-section-title">Approval Status</p>
+  <div id="approval-status-display"></div>
+
+  <!-- Action buttons — only shown when approval is PENDING -->
+  <div class="approval-actions" id="approval-actions" style="display:none">
+    <button class="btn-approve" id="btn-approve" onclick="approveFixAction()">
+      <span class="spinner" style="display:none" id="approve-spinner"></span>
+      Approve Fix
+    </button>
+    <button class="btn-reject" id="btn-reject" onclick="rejectFixAction()">
+      <span class="spinner dark" style="display:none" id="reject-spinner"></span>
+      Reject Fix
+    </button>
+  </div>
+
+  <div id="approval-msg"></div>
+</section>
+
+<!-- ── Final Result Summary ───────────────────────────────────────────────── -->
+<section class="card" id="result-card">
+  <h2>Final Result</h2>
+
+  <table class="result-table">
+    <thead>
+      <tr><th>Metric</th><th>Result</th></tr>
+    </thead>
+    <tbody id="result-table-body"></tbody>
+  </table>
+
+  <div style="margin-top:20px;">
+    <button class="btn-secondary" id="btn-evidence-report" onclick="openEvidenceReport()" style="display:none">
+      View Final Evidence Report
+    </button>
+  </div>
+
+  <div id="result-msg"></div>
+</section>
+
+<script>
+  // ─── State ──────────────────────────────────────────────────────────────────
+  let currentBugId = null;
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+  function showMsg(containerId, text, type) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = text ? `<div class="msg ${type}">${escapeHtml(text)}</div>` : '';
+  }
+
+  function clearMsg(containerId) {
+    document.getElementById(containerId).innerHTML = '';
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function setLoading(btnId, loading, label) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    if (loading) {
+      btn.innerHTML = `<span class="spinner"></span> ${escapeHtml(label)}`;
+    } else {
+      btn.textContent = label;
+    }
+  }
+
+  function renderMetaGrid(containerId, pairs) {
+    const el = document.getElementById(containerId);
+    if (!pairs.length) { el.innerHTML = ''; return; }
+    el.innerHTML = pairs.map(([k, v, mono]) =>
+      `<span class="key">${escapeHtml(k)}</span>` +
+      `<span class="val${mono ? ' mono' : ''}">${escapeHtml(String(v ?? '—'))}</span>`
+    ).join('');
+  }
+
+  function statusBadgeHtml(status) {
+    return `<span class="status-badge status-${escapeHtml(status)}">${escapeHtml(status)}</span>`;
+  }
+
+  // ─── Submit Bug ─────────────────────────────────────────────────────────────
+  async function submitBug() {
+    clearMsg('submit-msg');
+
+    const title       = document.getElementById('bug-title').value.trim();
+    const description = document.getElementById('bug-description').value.trim();
+    const repo        = document.getElementById('bug-repo').value;
+    const errorMsg    = document.getElementById('bug-error').value.trim();
+    const contextRaw  = document.getElementById('bug-context').value.trim();
+
+    // Client-side validation mirrors backend required fields
+    if (!title) {
+      showMsg('submit-msg', 'Title is required.', 'error'); return;
+    }
+    if (!description) {
+      showMsg('submit-msg', 'Description is required.', 'error'); return;
+    }
+    if (!repo) {
+      showMsg('submit-msg', 'Please select a target repository.', 'error'); return;
+    }
+
+    const payload = { title, description, target_repository: repo };
+    if (errorMsg)   payload.error_message = errorMsg;
+    if (contextRaw) payload.extra_context = { notes: contextRaw };
+
+    setLoading('btn-submit', true, 'Submitting…');
+
+    let data, ok;
+    try {
+      const res = await fetch('/api/bugs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+      ok   = res.ok;
+    } catch (err) {
+      setLoading('btn-submit', false, 'Submit Bug');
+      showMsg('submit-msg', 'Network error — could not reach the server.', 'error');
+      return;
+    }
+
+    setLoading('btn-submit', false, 'Submit Bug');
+
+    if (!ok) {
+      showMsg('submit-msg', data.error || 'Submission failed.', 'error');
+      return;
+    }
+
+    currentBugId = data.id;
+
+    // Show the investigation card with bug metadata
+    renderMetaGrid('bug-meta', [
+      ['Bug ID',     data.id,                true],
+      ['Repository', data.target_repository, false],
+      ['Status',     data.status,            false],
+    ]);
+
+    document.getElementById('investigate-card').style.display = 'block';
+    document.getElementById('investigate-card').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ─── Start Investigation ────────────────────────────────────────────────────
+  async function startInvestigation() {
+    if (!currentBugId) return;
+    clearMsg('investigate-msg');
+
+    setLoading('btn-investigate', true, 'Starting…');
+
+    let data, ok, status;
+    try {
+      const res = await fetch(`/api/bugs/${currentBugId}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      data   = await res.json();
+      ok     = res.ok;
+      status = res.status;
+    } catch (err) {
+      setLoading('btn-investigate', false, 'Start Investigation');
+      showMsg('investigate-msg', 'Network error — could not reach the server.', 'error');
+      return;
+    }
+
+    setLoading('btn-investigate', false, 'Start Investigation');
+
+    if (!ok) {
+      // 409 = already in progress or wrong state
+      const msgType = status === 409 ? 'warning' : 'error';
+      showMsg('investigate-msg', data.error || 'Could not start investigation.', msgType);
+      if (status === 409) {
+        // Bug exists but in wrong state — still show status
+        await renderBugStatus();
+      }
+      return;
+    }
+
+    // Backend returned 202 — investigation started
+    showMsg('investigate-msg',
+      'Investigation started. The pipeline is running in the background.',
+      'info'
+    );
+    document.getElementById('btn-investigate').disabled = true;
+    document.getElementById('btn-refresh').style.display = 'inline-flex';
+
+    await renderBugStatus();
+  }
+
+  // ─── Refresh / Poll Status ──────────────────────────────────────────────────
+  async function refreshStatus() {
+    if (!currentBugId) return;
+    clearMsg('status-msg');
+
+    const spinner1 = document.getElementById('refresh-spinner');
+    const spinner2 = document.getElementById('poll-spinner');
+    if (spinner1) spinner1.style.display = 'inline-block';
+    if (spinner2) spinner2.style.display = 'inline-block';
+
+    await renderBugStatus();
+
+    if (spinner1) spinner1.style.display = 'none';
+    if (spinner2) spinner2.style.display = 'none';
+  }
+
+  async function renderBugStatus() {
+    // Fetch bug record
+    let bugData;
+    try {
+      const res = await fetch(`/api/bugs/${currentBugId}`);
+      if (!res.ok) {
+        const err = await res.json();
+        showMsg('status-msg', err.error || 'Failed to fetch bug status.', 'error');
+        return;
+      }
+      bugData = await res.json();
+    } catch (err) {
+      showMsg('status-msg', 'Network error fetching bug status.', 'error');
+      return;
+    }
+
+    // Show status section
+    const statusSection = document.getElementById('status-section');
+    statusSection.style.display = 'block';
+    statusSection.scrollIntoView({ behavior: 'smooth' });
+
+    // Status badge
+    const badge = document.getElementById('status-badge');
+    badge.className = `status-badge status-${bugData.status}`;
+    badge.textContent = bugData.status;
+
+    // Bug meta
+    const metaPairs = [
+      ['Bug ID',     bugData.id,                true],
+      ['Repository', bugData.target_repository, false],
+      ['Created',    formatTs(bugData.created_at), false],
+      ['Updated',    formatTs(bugData.updated_at), false],
+    ];
+    renderMetaGrid('status-meta', metaPairs);
+
+    // Show poll row for active states
+    const activeStates = ['RECEIVED', 'INVESTIGATING', 'VERIFYING'];
+    document.getElementById('poll-row').style.display =
+      activeStates.includes(bugData.status) ? 'flex' : 'none';
+
+    // Show status-level messages for notable states
+    if (bugData.status === 'FAILED') {
+      showMsg('status-msg', 'The debugging pipeline reported a failure for this bug.', 'error');
+    } else if (bugData.status === 'COMPLETED') {
+      showMsg('status-msg', 'Pipeline completed.', 'success');
+    }
+
+    // Fetch investigations for this bug
+    let investigations = [];
+    try {
+      const res = await fetch(`/api/investigations/bug/${currentBugId}`);
+      if (res.ok) {
+        investigations = await res.json();
+      }
+    } catch (_) {
+      // Non-fatal — we still show bug status
+    }
+
+    const invSection = document.getElementById('investigation-section');
+    if (investigations.length > 0) {
+      const latest = investigations[0]; // ordered desc by created_at
+      invSection.style.display = 'block';
+
+      const invPairs = [
+        ['Investigation ID', latest.id, true],
+        ['Status',           latest.status, false],
+      ];
+      if (latest.summary) {
+        invPairs.push(['Summary', latest.summary, false]);
+      }
+      if (latest.suspected_cause) {
+        invPairs.push(['Suspected Cause', latest.suspected_cause, false]);
+      }
+      if (latest.confidence !== null && latest.confidence !== undefined) {
+        const pct = (latest.confidence * 100).toFixed(0) + '%';
+        invPairs.push(['AI Confidence', pct, false]);
+      }
+      if (latest.status === 'FAILED' && latest.error_details) {
+        invPairs.push(['Error Details', latest.error_details, false]);
+      }
+      renderMetaGrid('inv-meta', invPairs);
+
+      // AI / fallback transparency note
+      const aiNote = document.getElementById('inv-ai-note');
+      if (latest.root_cause_ai_generated) {
+        let noteText = 'Root-cause analysis is AI-generated and has not been machine-verified.';
+        if (!latest.root_cause_machine_supported) {
+          noteText += ' No machine-executed evidence has corroborated this analysis yet.';
+        }
+        aiNote.textContent = noteText;
+        aiNote.style.display = 'block';
+      } else {
+        aiNote.style.display = 'none';
+      }
+
+      // Investigation failed
+      if (latest.status === 'FAILED') {
+        showMsg('status-msg',
+          'The investigation pipeline failed. ' +
+          (latest.error_details ? latest.error_details : 'Check the server logs for details.'),
+          'error'
+        );
+      }
+    } else {
+      invSection.style.display = 'none';
+    }
+
+    // ── Workflow timeline ──────────────────────────────────────────────────
+    // Show the timeline card and populate it after the rest of status renders.
+    document.getElementById('workflow-card').style.display = 'block';
+    await renderWorkflowTimeline();
+  }
+
+  function formatTs(isoStr) {
+    if (!isoStr) return '—';
+    try {
+      return new Date(isoStr).toLocaleString();
+    } catch (_) {
+      return isoStr;
+    }
+  }
+
+  // ─── Workflow Timeline ───────────────────────────────────────────────────────
+
+  /**
+   * Build the ordered stage descriptors for the timeline.
+   * Each stage has: id, label, dot symbol (✓ / ● / – / ✕),
+   * state: 'completed' | 'current' | 'pending' | 'failed',
+   * and optional detail text.
+   *
+   * State is derived ONLY from data returned by existing backend endpoints:
+   *   bugData  → GET /api/bugs/<id>          (BugStatus)
+   *   invData  → GET /api/investigations/bug/<id>  (latest investigation)
+   *   fixData  → GET /api/fixes/investigation/<inv_id>  (latest fix)
+   *   testData → GET /api/verification/test-runs/bug/<id> (latest test run)
+   */
+  function buildTimelineStages(bugData, invData, fixData, testData) {
+    const status = bugData.status;
+
+    // Ordered list of bug statuses (used for "did we pass this stage?")
+    const ORDER = [
+      'RECEIVED',
+      'INVESTIGATING',
+      'ROOT_CAUSE_FOUND',
+      'FIX_GENERATED',
+      'WAITING_FOR_APPROVAL',
+      'FIX_APPLIED',
+      'VERIFYING',
+      'COMPLETED',
+    ];
+    const currentIdx = ORDER.indexOf(status);
+
+    // Returns true if the current bug status is strictly past the given status.
+    function isPast(s) {
+      const i = ORDER.indexOf(s);
+      return i !== -1 && currentIdx > i;
+    }
+    // Returns true if current bug status equals given status.
+    function isAt(s) { return status === s; }
+
+    // Resolve fix data (first / latest fix for the investigation)
+    const fix = fixData && fixData.length > 0 ? fixData[0] : null;
+    const inv = invData && invData.length > 0 ? invData[0] : null;
+    const latestTest = testData && testData.length > 0 ? testData[0] : null;
+
+    const stages = [];
+
+    // 1. Bug Received
+    // Completed once any later status is reached; current only when exactly RECEIVED.
+    {
+      let state;
+      if (['INVESTIGATING','ROOT_CAUSE_FOUND','FIX_GENERATED','WAITING_FOR_APPROVAL',
+           'FIX_APPLIED','VERIFYING','COMPLETED','FAILED','CANCELLED'].includes(status)) {
+        state = 'completed';
+      } else {
+        state = 'current'; // status === 'RECEIVED'
+      }
+      stages.push({ label: 'Bug Received', state, detail: null });
+    }
+
+    // 2. Investigation
+    {
+      let state = 'pending';
+      let detail = null;
+      // Completed if bug moved past INVESTIGATING, or if investigation record says COMPLETED.
+      if (isPast('INVESTIGATING') || (inv && inv.status === 'COMPLETED')) {
+        state = 'completed';
+        if (inv) detail = inv.summary ? inv.summary.slice(0, 90) + (inv.summary.length > 90 ? '…' : '') : null;
+      } else if (isAt('INVESTIGATING')) {
+        if (inv && inv.status === 'FAILED') {
+          state = 'failed';
+          detail = inv.error_details ? inv.error_details.slice(0, 80) : 'Investigation failed.';
+        } else {
+          state = 'current';
+          if (inv && inv.status === 'IN_PROGRESS') detail = 'Pipeline running…';
+        }
+      } else if (inv && inv.status === 'FAILED') {
+        // Bug FAILED and investigation also failed
+        state = 'failed';
+        detail = inv.error_details ? inv.error_details.slice(0, 80) : 'Investigation failed.';
+      }
+      stages.push({ label: 'Investigation', state, detail });
+    }
+
+    // 3. Evidence Collection
+    // Shares the INVESTIGATING window; completed when investigation completed.
+    {
+      let state = 'pending';
+      let detail = null;
+      if (isPast('INVESTIGATING') || (inv && inv.status === 'COMPLETED')) {
+        state = 'completed';
+        if (inv && inv.relevant_files && inv.relevant_files.length) {
+          detail = `${inv.relevant_files.length} relevant file(s) identified.`;
+        }
+      } else if (isAt('INVESTIGATING')) {
+        if (inv && inv.status === 'FAILED') {
+          state = 'failed';
+        } else if (inv && inv.status === 'IN_PROGRESS') {
+          state = 'current';
+          detail = 'Collecting evidence…';
+        }
+      } else if (inv && inv.status === 'FAILED') {
+        state = 'failed';
+      }
+      stages.push({ label: 'Evidence Collection', state, detail });
+    }
+
+    // 4. Root-Cause Analysis
+    {
+      let state = 'pending';
+      let detail = null;
+      if (['ROOT_CAUSE_FOUND','FIX_GENERATED','WAITING_FOR_APPROVAL','FIX_APPLIED','VERIFYING','COMPLETED'].includes(status) || isPast('ROOT_CAUSE_FOUND')) {
+        state = 'completed';
+        if (inv && inv.suspected_cause) {
+          detail = inv.suspected_cause.slice(0, 90) + (inv.suspected_cause.length > 90 ? '…' : '');
+        } else if (inv && inv.confidence !== null && inv.confidence !== undefined) {
+          detail = `AI confidence: ${(inv.confidence * 100).toFixed(0)}%`;
+        }
+      } else if (isAt('ROOT_CAUSE_FOUND')) {
+        state = 'current';
+      }
+      stages.push({ label: 'Root-Cause Analysis', state, detail });
+    }
+
+    // 5. Fix Proposal
+    {
+      let state = 'pending';
+      let detail = null;
+      if (['FIX_GENERATED','WAITING_FOR_APPROVAL','FIX_APPLIED','VERIFYING','COMPLETED'].includes(status) || isPast('FIX_GENERATED')) {
+        state = 'completed';
+        if (fix && fix.explanation) {
+          detail = fix.explanation.slice(0, 90) + (fix.explanation.length > 90 ? '…' : '');
+        } else if (fix && fix.confidence !== null && fix.confidence !== undefined) {
+          detail = `AI confidence: ${(fix.confidence * 100).toFixed(0)}%`;
+        }
+      } else if (isAt('FIX_GENERATED')) {
+        state = 'current';
+      }
+      stages.push({ label: 'Fix Proposal', state, detail });
+    }
+
+    // 6. Waiting for Developer Approval
+    {
+      let state = 'pending';
+      let detail = null;
+      if (['FIX_APPLIED','VERIFYING','COMPLETED'].includes(status) || isPast('WAITING_FOR_APPROVAL')) {
+        // Approval was given (fix applied means it was approved)
+        state = 'completed';
+        if (fix && fix.approval_status === 'APPROVED') {
+          detail = fix.approved_by ? `Approved by ${fix.approved_by}.` : 'Approved.';
+        } else if (fix && fix.approval_status === 'REJECTED') {
+          state = 'failed';
+          detail = fix.rejection_reason ? fix.rejection_reason.slice(0, 80) : 'Fix rejected.';
+        }
+      } else if (isAt('WAITING_FOR_APPROVAL')) {
+        state = 'current';
+        if (fix) {
+          if (fix.approval_status === 'APPROVED')       detail = 'Approved — applying fix…';
+          else if (fix.approval_status === 'REJECTED')  { state = 'failed'; detail = fix.rejection_reason || 'Fix rejected.'; }
+          else                                           detail = 'Awaiting developer review.';
+        }
+      }
+      stages.push({ label: 'Waiting for Developer Approval', state, detail });
+    }
+
+    // 7. Fix Applied
+    {
+      let state = 'pending';
+      let detail = null;
+      if (['VERIFYING','COMPLETED'].includes(status) || isPast('FIX_APPLIED')) {
+        state = 'completed';
+        if (fix && fix.applied_at) detail = `Applied ${formatTs(fix.applied_at)}.`;
+      } else if (isAt('FIX_APPLIED')) {
+        state = 'current';
+        if (fix) {
+          if (fix.application_status === 'FAILED') { state = 'failed'; detail = fix.application_error || 'Patch application failed.'; }
+          else if (fix.application_status === 'APPLYING') detail = 'Applying patch…';
+          else if (fix.application_status === 'APPLIED')  detail = `Applied ${formatTs(fix.applied_at)}.`;
+        }
+      } else if (status === 'FAILED' && fix && fix.application_status === 'FAILED') {
+        state = 'failed';
+        detail = fix.application_error || 'Patch application failed.';
+      }
+      stages.push({ label: 'Fix Applied', state, detail });
+    }
+
+    // 8. Testing / Verification
+    {
+      let state = 'pending';
+      let detail = null;
+      if (isAt('COMPLETED') || isPast('VERIFYING')) {
+        state = 'completed';
+        if (latestTest) {
+          const ts = latestTest.tests_total;
+          const ps = latestTest.tests_passed;
+          if (ts != null) detail = `${ps ?? '?'}/${ts} tests passed.`;
+        }
+      } else if (isAt('VERIFYING')) {
+        if (latestTest && latestTest.status === 'FAILED') {
+          state = 'failed';
+          detail = `${latestTest.tests_failed ?? '?'} test(s) failed.`;
+        } else if (latestTest && latestTest.status === 'ERROR') {
+          state = 'failed';
+          detail = 'Test run error — check server logs.';
+        } else {
+          state = 'current';
+          if (latestTest && latestTest.status === 'RUNNING') detail = 'Tests running…';
+          else detail = 'Verification in progress.';
+        }
+      } else if (status === 'FAILED' && latestTest && ['FAILED','ERROR'].includes(latestTest.status)) {
+        state = 'failed';
+        detail = latestTest.status === 'ERROR' ? 'Test run error.' : `${latestTest.tests_failed ?? '?'} test(s) failed.`;
+      }
+      stages.push({ label: 'Testing / Verification', state, detail });
+    }
+
+    // 9. Completed / Failed
+    {
+      let state = 'pending';
+      let detail = null;
+      if (isAt('COMPLETED')) {
+        state = 'completed';
+        detail = 'All pipeline stages finished successfully.';
+      } else if (isAt('FAILED') || isAt('CANCELLED')) {
+        state = 'failed';
+        detail = isAt('CANCELLED') ? 'Pipeline was cancelled.' : 'Pipeline ended with a failure.';
+      }
+      stages.push({ label: 'Completed', state, detail });
+    }
+
+    return stages;
+  }
+
+  function dotSymbol(state) {
+    if (state === 'completed') return '✓';
+    if (state === 'current')   return '●';
+    if (state === 'failed')    return '✕';
+    return '–';
+  }
+
+  function renderTimelineHtml(stages) {
+    return stages.map(s => {
+      const pill = (s.state === 'current' || s.state === 'failed')
+        ? `<span class="tl-pill ${s.state}">${s.state === 'current' ? 'IN PROGRESS' : 'FAILED'}</span>`
+        : '';
+      const detail = s.detail
+        ? `<div class="tl-detail">${escapeHtml(s.detail)}</div>`
+        : '';
+      return `<li class="tl-item">
+        <span class="tl-dot ${s.state}">${dotSymbol(s.state)}</span>
+        <div class="tl-body">
+          <div class="tl-label ${s.state}">${escapeHtml(s.label)}${pill}</div>
+          ${detail}
+        </div>
+      </li>`;
+    }).join('');
+  }
+
+  async function renderWorkflowTimeline() {
+    if (!currentBugId) return;
+    clearMsg('workflow-msg');
+
+    // Show loading indicator
+    document.getElementById('workflow-timeline-loading').style.display = 'flex';
+    document.getElementById('workflow-timeline').innerHTML = '';
+
+    // ── Fetch bug status ───────────────────────────────────────────────────
+    let bugData;
+    try {
+      const res = await fetch(`/api/bugs/${currentBugId}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showMsg('workflow-msg', err.error || 'Failed to load bug status.', 'error');
+        document.getElementById('workflow-timeline-loading').style.display = 'none';
+        return;
+      }
+      bugData = await res.json();
+    } catch (_) {
+      showMsg('workflow-msg', 'Network error loading bug status.', 'error');
+      document.getElementById('workflow-timeline-loading').style.display = 'none';
+      return;
+    }
+
+    // ── Fetch investigations ───────────────────────────────────────────────
+    let invData = [];
+    try {
+      const res = await fetch(`/api/investigations/bug/${currentBugId}`);
+      if (res.ok) invData = await res.json();
+    } catch (_) { /* non-fatal */ }
+
+    // ── Fetch fixes for the latest investigation ───────────────────────────
+    let fixData = [];
+    const latestInv = invData.length > 0 ? invData[0] : null;
+    if (latestInv) {
+      try {
+        const res = await fetch(`/api/fixes/investigation/${latestInv.id}`);
+        if (res.ok) fixData = await res.json();
+      } catch (_) { /* non-fatal */ }
+    }
+
+    // ── Fetch verification test runs for this bug ──────────────────────────
+    let testData = [];
+    try {
+      const res = await fetch(`/api/verification/test-runs/bug/${currentBugId}`);
+      if (res.ok) testData = await res.json();
+    } catch (_) { /* non-fatal */ }
+
+    // ── Build and render timeline ──────────────────────────────────────────
+    document.getElementById('workflow-timeline-loading').style.display = 'none';
+
+    const stages = buildTimelineStages(bugData, invData, fixData, testData);
+    document.getElementById('workflow-timeline').innerHTML = renderTimelineHtml(stages);
+
+    // Show refresh button for in-flight states
+    const inFlight = ['RECEIVED','INVESTIGATING','WAITING_FOR_APPROVAL','FIX_APPLIED','VERIFYING'].includes(bugData.status);
+    const refreshRow = document.getElementById('workflow-refresh-row');
+    refreshRow.style.display = inFlight ? 'flex' : 'none';
+
+    const noteEl = document.getElementById('workflow-poll-note');
+    if (inFlight) {
+      noteEl.textContent = 'Pipeline is running — click Refresh to update.';
+    }
+
+    // Error banner for terminal-failed state
+    if (bugData.status === 'FAILED') {
+      showMsg('workflow-msg', 'The pipeline ended with a failure. See the stage details above.', 'error');
+    } else if (bugData.status === 'CANCELLED') {
+      showMsg('workflow-msg', 'This pipeline was cancelled.', 'warning');
+    }
+
+    // ── Approval section & result summary ─────────────────────────────────
+    // Store the fix id on the approval card so action handlers can find it.
+    const approvalCard = document.getElementById('approval-card');
+    const currentFix = fixData && fixData.length > 0 ? fixData[0] : null;
+    approvalCard.dataset.fixId = currentFix ? currentFix.id : '';
+
+    await renderApprovalSection(fixData, invData, bugData);
+    await renderFinalResult();
+  }
+
+  async function refreshWorkflow() {
+    const spinner = document.getElementById('workflow-spinner');
+    if (spinner) spinner.style.display = 'inline-block';
+    await renderWorkflowTimeline();
+    if (spinner) spinner.style.display = 'none';
+  }
+
+  // ─── Developer Approval Section ──────────────────────────────────────────────
+
+  /**
+   * Render the #approval-card.
+   * Called after renderWorkflowTimeline() whenever a fix exists.
+   *
+   * Uses:
+   *   GET /api/fixes/investigation/<inv_id>  — list fixes (Member 1 API)
+   *   GET /api/investigations/bug/<bug_id>   — to get the investigation id
+   * No new endpoints created.
+   */
+  async function renderApprovalSection(fixData, invData, bugData) {
+    const approvalCard = document.getElementById('approval-card');
+
+    // Only show for relevant statuses
+    const relevantStatuses = [
+      'WAITING_FOR_APPROVAL','FIX_APPLIED','VERIFYING','COMPLETED','FAILED'
+    ];
+    if (!relevantStatuses.includes(bugData.status)) {
+      approvalCard.style.display = 'none';
+      return;
+    }
+
+    const fix = fixData && fixData.length > 0 ? fixData[0] : null;
+    if (!fix) {
+      approvalCard.style.display = 'none';
+      return;
+    }
+
+    approvalCard.style.display = 'block';
+
+    // ── Fix meta ─────────────────────────────────────────────────────────────
+    const confPct = fix.confidence !== null && fix.confidence !== undefined
+      ? (fix.confidence * 100).toFixed(0) + '%' : '—';
+    const riskLevel = (fix.risk_info && fix.risk_info.impact_risk_level)
+      ? fix.risk_info.impact_risk_level : '—';
+    const filesChanged = (fix.files_changed && fix.files_changed.length)
+      ? fix.files_changed.join(', ') : '—';
+
+    renderMetaGrid('approval-fix-meta', [
+      ['Fix ID',            fix.id,                          true],
+      ['AI Generated',      fix.ai_generated ? 'Yes' : 'No', false],
+      ['AI Confidence',     confPct,                          false],
+      ['Risk Level',        riskLevel,                        false],
+      ['Files Changed',     filesChanged,                     false],
+    ]);
+    if (fix.explanation) {
+      const el = document.getElementById('approval-fix-meta');
+      el.innerHTML += `<span class="key">Explanation</span><span class="val">${escapeHtml(fix.explanation)}</span>`;
+    }
+
+    // ── Patch / Diff ─────────────────────────────────────────────────────────
+    const patchTitle = document.getElementById('approval-patch-title');
+    const patchEl    = document.getElementById('approval-patch');
+    const noPatchEl  = document.getElementById('approval-no-patch');
+    if (fix.patch) {
+      patchTitle.style.display = 'block';
+      patchEl.style.display    = 'block';
+      patchEl.textContent      = fix.patch;
+      noPatchEl.style.display  = 'none';
+    } else {
+      patchTitle.style.display = 'none';
+      patchEl.style.display    = 'none';
+      noPatchEl.style.display  = 'block';
+    }
+
+    // ── Supporting Evidence ───────────────────────────────────────────────────
+    const evidenceTitle   = document.getElementById('approval-evidence-title');
+    const evidenceListEl  = document.getElementById('approval-evidence-list');
+    if (fix.supporting_evidence_ids && fix.supporting_evidence_ids.length) {
+      evidenceTitle.style.display = 'block';
+      evidenceListEl.innerHTML = fix.supporting_evidence_ids.map(eid =>
+        `<li>Evidence ID: <code style="font-family:monospace;font-size:11px">${escapeHtml(eid)}</code></li>`
+      ).join('');
+    } else {
+      evidenceTitle.style.display = 'none';
+      evidenceListEl.innerHTML = '';
+    }
+
+    // ── Approval Status display (read from backend, not from click) ───────────
+    _renderApprovalStatus(fix);
+
+    // ── Action buttons — only if PENDING ─────────────────────────────────────
+    const actionsEl = document.getElementById('approval-actions');
+    if (fix.approval_status === 'PENDING') {
+      actionsEl.style.display = 'flex';
+    } else {
+      actionsEl.style.display = 'none';
+    }
+  }
+
+  /**
+   * Render the approval-status-display element from a fix object.
+   * This reads approval_status from the data returned by the backend.
+   */
+  function _renderApprovalStatus(fix) {
+    const el = document.getElementById('approval-status-display');
+    let html = '';
+    if (fix.approval_status === 'APPROVED') {
+      const by = fix.approved_by ? ` by <strong>${escapeHtml(fix.approved_by)}</strong>` : '';
+      const at = fix.approved_at ? ` on ${formatTs(fix.approved_at)}` : '';
+      html = `<span class="result-pill pill-ok">APPROVED</span> Approved${by}${at}.`;
+    } else if (fix.approval_status === 'REJECTED') {
+      const reason = fix.rejection_reason
+        ? ` Reason: ${escapeHtml(fix.rejection_reason)}` : '';
+      html = `<span class="result-pill pill-fail">REJECTED</span>${reason}`;
+    } else {
+      html = `<span class="result-pill pill-pending">PENDING</span> Awaiting developer review.`;
+    }
+    el.innerHTML = `<p style="font-size:13px;margin-top:2px;">${html}</p>`;
+  }
+
+  /**
+   * Approve the current fix using POST /api/fixes/<id>/approve (Member 1 API).
+   * After the API responds, reads back the updated fix from the backend.
+   * Never marks the fix as applied based solely on the click.
+   */
+  async function approveFixAction() {
+    clearMsg('approval-msg');
+    const btnApprove = document.getElementById('btn-approve');
+    const btnReject  = document.getElementById('btn-reject');
+    const spinner    = document.getElementById('approve-spinner');
+
+    // Disable both buttons and show spinner during request
+    btnApprove.disabled = true;
+    btnReject.disabled  = true;
+    spinner.style.display = 'inline-block';
+
+    // Get fix id from current data
+    const fixId = _getCurrentFixId();
+    if (!fixId) {
+      showMsg('approval-msg', 'No fix to approve.', 'error');
+      btnApprove.disabled = false;
+      btnReject.disabled  = false;
+      spinner.style.display = 'none';
+      return;
+    }
+
+    let data, ok;
+    try {
+      const res = await fetch(`/api/fixes/${fixId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      data = await res.json();
+      ok   = res.ok;
+    } catch (_) {
+      showMsg('approval-msg', 'Network error — could not reach the server.', 'error');
+      btnApprove.disabled = false;
+      btnReject.disabled  = false;
+      spinner.style.display = 'none';
+      return;
+    }
+
+    spinner.style.display = 'none';
+
+    if (!ok) {
+      showMsg('approval-msg', data.error || 'Approval failed.', 'error');
+      btnApprove.disabled = false;
+      btnReject.disabled  = false;
+      return;
+    }
+
+    // API succeeded — re-read from backend (data IS the updated fix)
+    _renderApprovalStatus(data);
+    // Hide action buttons — no longer PENDING
+    document.getElementById('approval-actions').style.display = 'none';
+    showMsg('approval-msg', 'Fix approved. Refreshing status…', 'success');
+
+    // Refresh workflow timeline + final result from backend
+    await _refreshAfterApprovalAction();
+  }
+
+  /**
+   * Reject the current fix using POST /api/fixes/<id>/reject (Member 1 API).
+   * Reads back backend state afterwards.
+   */
+  async function rejectFixAction() {
+    clearMsg('approval-msg');
+    const btnApprove = document.getElementById('btn-approve');
+    const btnReject  = document.getElementById('btn-reject');
+    const spinner    = document.getElementById('reject-spinner');
+
+    btnApprove.disabled = true;
+    btnReject.disabled  = true;
+    spinner.style.display = 'inline-block';
+
+    const fixId = _getCurrentFixId();
+    if (!fixId) {
+      showMsg('approval-msg', 'No fix to reject.', 'error');
+      btnApprove.disabled = false;
+      btnReject.disabled  = false;
+      spinner.style.display = 'none';
+      return;
+    }
+
+    let data, ok;
+    try {
+      const res = await fetch(`/api/fixes/${fixId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejection_reason: 'Rejected by developer.' }),
+      });
+      data = await res.json();
+      ok   = res.ok;
+    } catch (_) {
+      showMsg('approval-msg', 'Network error — could not reach the server.', 'error');
+      btnApprove.disabled = false;
+      btnReject.disabled  = false;
+      spinner.style.display = 'none';
+      return;
+    }
+
+    spinner.style.display = 'none';
+
+    if (!ok) {
+      showMsg('approval-msg', data.error || 'Rejection failed.', 'error');
+      btnApprove.disabled = false;
+      btnReject.disabled  = false;
+      return;
+    }
+
+    // Re-read from backend
+    _renderApprovalStatus(data);
+    document.getElementById('approval-actions').style.display = 'none';
+    showMsg('approval-msg', 'Fix rejected. Refreshing status…', 'warning');
+
+    await _refreshAfterApprovalAction();
+  }
+
+  /**
+   * Helper: returns the fix id from the current approval card meta-grid.
+   * Stored in a data attribute on the card element.
+   */
+  function _getCurrentFixId() {
+    return document.getElementById('approval-card').dataset.fixId || null;
+  }
+
+  /**
+   * After approve or reject: refresh timeline + final result section.
+   */
+  async function _refreshAfterApprovalAction() {
+    await renderWorkflowTimeline();
+    await renderFinalResult();
+  }
+
+  // ─── Final Result Summary ─────────────────────────────────────────────────────
+
+  /**
+   * Render the #result-card using backend data only.
+   * Never shows "Fix Applied" from a click — reads application_status from the fix.
+   * Never shows "Verification Passed" unless a PASSED test run exists in the backend.
+   */
+  async function renderFinalResult() {
+    const resultCard = document.getElementById('result-card');
+
+    if (!currentBugId) {
+      resultCard.style.display = 'none';
+      return;
+    }
+
+    // Only show once something substantial has happened
+    let bugData;
+    try {
+      const res = await fetch(`/api/bugs/${currentBugId}`);
+      if (!res.ok) { resultCard.style.display = 'none'; return; }
+      bugData = await res.json();
+    } catch (_) { resultCard.style.display = 'none'; return; }
+
+    const showStatuses = [
+      'WAITING_FOR_APPROVAL','FIX_APPLIED','VERIFYING','COMPLETED','FAILED'
+    ];
+    if (!showStatuses.includes(bugData.status)) {
+      resultCard.style.display = 'none';
+      return;
+    }
+
+    resultCard.style.display = 'block';
+
+    // ── Fetch latest investigation ────────────────────────────────────────────
+    let invData = [];
+    try {
+      const r = await fetch(`/api/investigations/bug/${currentBugId}`);
+      if (r.ok) invData = await r.json();
+    } catch (_) { /* non-fatal */ }
+    const latestInv = invData.length > 0 ? invData[0] : null;
+
+    // ── Fetch fixes ───────────────────────────────────────────────────────────
+    let fixData = [];
+    if (latestInv) {
+      try {
+        const r = await fetch(`/api/fixes/investigation/${latestInv.id}`);
+        if (r.ok) fixData = await r.json();
+      } catch (_) { /* non-fatal */ }
+    }
+    const fix = fixData.length > 0 ? fixData[0] : null;
+
+    // ── Fetch test runs ───────────────────────────────────────────────────────
+    let testRuns = [];
+    try {
+      const r = await fetch(`/api/verification/test-runs/bug/${currentBugId}`);
+      if (r.ok) testRuns = await r.json();
+    } catch (_) { /* non-fatal */ }
+
+    // ── Fetch / generate report for Evidence Report button ───────────────────
+    let reportId = null;
+    try {
+      const rList = await fetch(`/api/reports/bug/${currentBugId}`);
+      if (rList.ok) {
+        const reports = await rList.json();
+        if (reports.length > 0) reportId = reports[0].id;
+      }
+    } catch (_) { /* non-fatal */ }
+
+    // ── Build result rows ─────────────────────────────────────────────────────
+    const rows = [];
+
+    // 1. Approval Status — from backend fix.approval_status
+    if (fix) {
+      let pill, text;
+      if (fix.approval_status === 'APPROVED') {
+        pill = 'pill-ok'; text = 'Approved';
+        if (fix.approved_by) text += ` by ${fix.approved_by}`;
+      } else if (fix.approval_status === 'REJECTED') {
+        pill = 'pill-fail'; text = 'Rejected';
+        if (fix.rejection_reason) text += ` — ${fix.rejection_reason}`;
+      } else {
+        pill = 'pill-pending'; text = 'Pending developer review';
+      }
+      rows.push(['Approval Status', pill, text]);
+    } else {
+      rows.push(['Approval Status', 'pill-none', 'No fix generated']);
+    }
+
+    // 2. Fix Application Status — read ONLY from fix.application_status
+    if (!fix) {
+      rows.push(['Fix Application Status', 'pill-none', 'No fix available']);
+    } else if (!fix.patch) {
+      rows.push(['Fix Application Status', 'pill-none', 'No fix patch available']);
+    } else {
+      const appStatus = fix.application_status || 'NOT_APPLIED';
+      let pill, text;
+      if (appStatus === 'APPLIED') {
+        pill = 'pill-ok';
+        text = 'Fix applied' + (fix.applied_at ? ` (${formatTs(fix.applied_at)})` : '');
+      } else if (appStatus === 'FAILED') {
+        pill = 'pill-fail';
+        text = 'Application failed';
+        if (fix.application_error) text += `: ${fix.application_error.slice(0, 80)}`;
+      } else if (appStatus === 'APPLYING') {
+        pill = 'pill-pending';
+        text = 'Applying patch…';
+      } else {
+        pill = 'pill-none';
+        text = 'Not yet applied';
+      }
+      rows.push(['Fix Application Status', pill, text]);
+    }
+
+    // 3. Reproduction Result — from BUG_REPRODUCTION test run
+    const reproRun = testRuns.find(tr => tr.kind === 'BUG_REPRODUCTION');
+    if (!reproRun) {
+      rows.push(['Reproduction Result', 'pill-none', 'Not run']);
+    } else if (reproRun.status === 'PASSED') {
+      const cnt = reproRun.tests_total != null
+        ? ` (${reproRun.tests_passed ?? '?'}/${reproRun.tests_total} tests passed)` : '';
+      rows.push(['Reproduction Result', 'pill-ok', 'Passed' + cnt]);
+    } else if (reproRun.status === 'FAILED') {
+      const cnt = reproRun.tests_failed != null ? ` (${reproRun.tests_failed} failed)` : '';
+      rows.push(['Reproduction Result', 'pill-fail', 'Failed' + cnt]);
+    } else if (reproRun.status === 'ERROR') {
+      rows.push(['Reproduction Result', 'pill-fail', 'Test run error — check server logs']);
+    } else {
+      rows.push(['Reproduction Result', 'pill-pending', reproRun.status]);
+    }
+
+    // 4. Regression Test Result — from REGRESSION or GENERATED_REGRESSION run
+    const regrRun = testRuns.find(tr =>
+      tr.kind === 'REGRESSION' || tr.kind === 'GENERATED_REGRESSION'
+    );
+    if (!regrRun) {
+      rows.push(['Regression Test Result', 'pill-none', 'Not run']);
+    } else if (regrRun.status === 'PASSED') {
+      const cnt = regrRun.tests_total != null
+        ? ` (${regrRun.tests_passed ?? '?'}/${regrRun.tests_total})` : '';
+      rows.push(['Regression Test Result', 'pill-ok', 'Passed' + cnt]);
+    } else if (regrRun.status === 'FAILED') {
+      const cnt = regrRun.tests_failed != null
+        ? ` (${regrRun.tests_failed} test(s) failed)` : '';
+      rows.push(['Regression Test Result', 'pill-fail', 'Failed' + cnt]);
+    } else if (regrRun.status === 'ERROR') {
+      rows.push(['Regression Test Result', 'pill-fail', 'Test run error — check server logs']);
+    } else {
+      rows.push(['Regression Test Result', 'pill-pending', regrRun.status]);
+    }
+
+    // 5. Existing Test Result — most recent non-regression, non-reproduction run
+    const existingRun = testRuns.find(tr =>
+      tr.kind !== 'BUG_REPRODUCTION' && tr.kind !== 'REGRESSION' && tr.kind !== 'GENERATED_REGRESSION'
+    );
+    if (!existingRun) {
+      rows.push(['Existing Test Result', 'pill-none', 'Not run']);
+    } else if (existingRun.status === 'PASSED') {
+      rows.push(['Existing Test Result', 'pill-ok', 'Passed']);
+    } else if (existingRun.status === 'FAILED') {
+      rows.push(['Existing Test Result', 'pill-fail', 'Failed']);
+    } else if (existingRun.status === 'ERROR') {
+      rows.push(['Existing Test Result', 'pill-fail', 'Error']);
+    } else {
+      rows.push(['Existing Test Result', 'pill-pending', existingRun.status]);
+    }
+
+    // 6. Impact Analysis
+    if (fix && fix.risk_info && fix.risk_info.impact_risk_level) {
+      const level = fix.risk_info.impact_risk_level;
+      const levelUpper = level.toUpperCase();
+      const pill = level === 'low' ? 'pill-ok'
+                 : level === 'high' ? 'pill-fail' : 'pill-pending';
+      const areaCount = fix.risk_info.impact_affected_areas_count;
+      const detail = areaCount != null ? ` — ${areaCount} area(s) affected` : '';
+      rows.push(['Impact Analysis', pill, `Risk: ${levelUpper}${detail}`]);
+    } else {
+      rows.push(['Impact Analysis', 'pill-none', 'Not analysed']);
+    }
+
+    // 7. Final Verification — backend bugData.status drives this, never the button click
+    if (bugData.status === 'COMPLETED') {
+      // Only passes if backend says COMPLETED
+      const passedRuns = testRuns.filter(tr => tr.status === 'PASSED').length;
+      rows.push(['Final Verification', 'pill-ok',
+        `Verification passed (${passedRuns} test run(s) passed)`]);
+    } else if (bugData.status === 'FAILED') {
+      // Determine what failed
+      const failedRun = testRuns.find(tr => tr.status === 'FAILED');
+      const failDetail = failedRun
+        ? (failedRun.tests_failed != null
+            ? `${failedRun.tests_failed} test(s) failed`
+            : 'Test failure — see test run details')
+        : 'Pipeline failure — no test run data';
+      rows.push(['Final Verification', 'pill-fail', failDetail]);
+    } else if (bugData.status === 'VERIFYING') {
+      rows.push(['Final Verification', 'pill-pending', 'Verification in progress']);
+    } else if (bugData.status === 'FIX_APPLIED') {
+      rows.push(['Final Verification', 'pill-pending', 'Awaiting verification']);
+    } else {
+      rows.push(['Final Verification', 'pill-none', 'Incomplete Verification']);
+    }
+
+    // ── Render table ──────────────────────────────────────────────────────────
+    const tbody = document.getElementById('result-table-body');
+    tbody.innerHTML = rows.map(([label, pill, text]) =>
+      `<tr>
+        <td style="color:#57606a;">${escapeHtml(label)}</td>
+        <td><span class="result-pill ${escapeHtml(pill)}">${escapeHtml(text)}</span></td>
+      </tr>`
+    ).join('');
+
+    // ── Evidence Report button ────────────────────────────────────────────────
+    const reportBtn = document.getElementById('btn-evidence-report');
+    if (reportId) {
+      reportBtn.style.display = 'inline-flex';
+      reportBtn.dataset.reportBugId = currentBugId;
+    } else {
+      // No report yet — offer to generate one
+      reportBtn.style.display = 'inline-flex';
+      reportBtn.dataset.reportBugId = currentBugId;
+    }
+  }
+
+  /**
+   * Open the Evidence Report page for the current bug.
+   * Uses the /report/<bug_id> route served by the frontend blueprint.
+   */
+  function openEvidenceReport() {
+    if (!currentBugId) return;
+    window.open(`/report/${encodeURIComponent(currentBugId)}`, '_blank');
+  }
+
+</script>
+</body>
+</html>

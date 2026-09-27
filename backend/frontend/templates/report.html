@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BugProof — Evidence Report</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      background: #f7f8fa;
+      color: #1f2328;
+      padding: 0 0 48px;
+    }
+
+    /* ---- Page header ---- */
+    .page-header {
+      background: #1f2328;
+      color: #fff;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .page-header a {
+      color: #8cb4e8;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .page-header a:hover { text-decoration: underline; }
+    .page-header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      flex: 1;
+    }
+    .page-header .subtitle {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 1px;
+    }
+
+    /* ---- Layout ---- */
+    .report-layout {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px 0;
+    }
+
+    /* ---- Cards ---- */
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    /* ---- Section headers (collapsible) ---- */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 16px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .section-header:hover { background: #f7f8fa; }
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      flex: 1;
+    }
+    .section-toggle {
+      font-size: 12px;
+      color: #57606a;
+      transition: transform 0.15s;
+    }
+    .section-toggle.open { transform: rotate(90deg); }
+    .section-body {
+      padding: 14px 16px;
+    }
+    .section-body.hidden { display: none; }
+
+    /* ---- Labels / badges ---- */
+    .label-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+    }
+    .pill-ai {
+      background: #fff3cd;
+      color: #7a5500;
+      border: 1px solid #f0d070;
+    }
+    .pill-machine {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #a8d8a8;
+    }
+    .pill-warn {
+      background: #fff0f0;
+      color: #a12121;
+      border: 1px solid #f5c6c6;
+    }
+    .pill-neutral {
+      background: #f7f8fa;
+      color: #57606a;
+      border: 1px solid #d0d7de;
+    }
+
+    /* ---- Status badge ---- */
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-RECEIVED       { background: #f0f6ff; color: #1f4788; border: 1px solid #bdd5f5; }
+    .status-INVESTIGATING  { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .status-ROOT_CAUSE_FOUND { background: #f0f6ff; color: #1f4788; border: 1px solid #bdd5f5; }
+    .status-FIX_GENERATED  { background: #f0f6ff; color: #1f4788; border: 1px solid #bdd5f5; }
+    .status-WAITING_FOR_APPROVAL { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .status-FIX_APPLIED    { background: #f0faf0; color: #1a5c1a; border: 1px solid #a8d8a8; }
+    .status-VERIFYING      { background: #fff8e6; color: #7a5500; border: 1px solid #f0d070; }
+    .status-COMPLETED      { background: #f0faf0; color: #1a5c1a; border: 1px solid #a8d8a8; }
+    .status-FAILED         { background: #fff0f0; color: #a12121; border: 1px solid #f5c6c6; }
+    .status-CANCELLED      { background: #f7f8fa; color: #57606a; border: 1px solid #d0d7de; }
+
+    /* ---- Confidence bar ---- */
+    .confidence-bar-track {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .confidence-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: #3b82d4;
+      transition: width 0.3s;
+    }
+    .confidence-bar-fill.verified { background: #28a745; }
+
+    /* ---- Meta grid ---- */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 4px 10px;
+      font-size: 13px;
+    }
+    .meta-key {
+      color: #57606a;
+      font-weight: 500;
+      padding: 2px 0;
+    }
+    .meta-val {
+      padding: 2px 0;
+      word-break: break-word;
+    }
+    .meta-val.mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+    .meta-val.na { color: #57606a; font-style: italic; }
+
+    /* ---- Code block ---- */
+    .code-block {
+      background: #f6f8fa;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+      color: #1f2328;
+      margin-top: 6px;
+    }
+
+    /* ---- Evidence items ---- */
+    .evidence-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: #fafbfc;
+    }
+    .evidence-item-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+    .evidence-type {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #57606a;
+    }
+    .evidence-desc {
+      font-size: 13px;
+      color: #1f2328;
+    }
+    .evidence-meta {
+      font-size: 12px;
+      color: #57606a;
+      margin-top: 3px;
+    }
+
+    /* ---- Test run rows ---- */
+    .test-run-row {
+      display: grid;
+      grid-template-columns: 140px 80px 80px 1fr;
+      gap: 6px 10px;
+      font-size: 12px;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .test-run-row:last-child { border-bottom: none; }
+    .test-run-kind {
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #57606a;
+    }
+    .tr-PASSED { color: #1a5c1a; font-weight: 600; }
+    .tr-FAILED { color: #a12121; font-weight: 600; }
+    .tr-ERROR  { color: #a12121; font-weight: 600; }
+    .tr-RUNNING{ color: #7a5500; font-weight: 600; }
+    .tr-PENDING{ color: #57606a; }
+
+    /* ---- File lists ---- */
+    .file-list {
+      list-style: none;
+      margin-top: 6px;
+    }
+    .file-list li {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      padding: 2px 0;
+      color: #1f2328;
+    }
+    .file-list li::before {
+      content: "• ";
+      color: #57606a;
+    }
+
+    /* ---- Section divider ---- */
+    .section-divider {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 12px 0;
+    }
+
+    /* ---- Inline AI warning banner ---- */
+    .ai-warning {
+      background: #fff8e6;
+      border: 1px solid #f0d070;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #7a5500;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .ai-warning .icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+    /* ---- Machine verified banner ---- */
+    .machine-banner {
+      background: #f0faf0;
+      border: 1px solid #a8d8a8;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #155724;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .machine-banner .icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+    /* ---- Error banner ---- */
+    .error-banner {
+      background: #fff0f0;
+      border: 1px solid #f5c6c6;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #a12121;
+      margin-bottom: 10px;
+    }
+
+    /* ---- Limitations list ---- */
+    .limitations-list {
+      list-style: none;
+      margin-top: 6px;
+    }
+    .limitations-list li {
+      padding: 4px 0 4px 18px;
+      position: relative;
+      font-size: 13px;
+      color: #7a5500;
+    }
+    .limitations-list li::before {
+      content: "⚠";
+      position: absolute;
+      left: 0;
+      top: 4px;
+      font-size: 12px;
+    }
+
+    /* ---- Summary banner at top ---- */
+    .report-summary {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .report-summary .summary-text {
+      font-size: 13px;
+      color: #57606a;
+      flex: 1;
+      line-height: 1.6;
+    }
+    .report-summary .confidence-block {
+      flex-shrink: 0;
+      width: 140px;
+      text-align: center;
+    }
+    .confidence-num {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1f2328;
+      line-height: 1;
+    }
+    .confidence-label {
+      font-size: 11px;
+      color: #57606a;
+      margin-top: 2px;
+    }
+
+    /* ---- Final status ---- */
+    .final-status-box {
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+    }
+    .final-status-box .big-status {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .final-status-box .status-note {
+      font-size: 13px;
+      color: #57606a;
+    }
+    .final-COMPLETED { background: #f0faf0; border: 1px solid #a8d8a8; color: #1a5c1a; }
+    .final-FAILED    { background: #fff0f0; border: 1px solid #f5c6c6; color: #a12121; }
+    .final-other     { background: #f7f8fa; border: 1px solid #d0d7de; color: #1f2328; }
+
+    /* ---- Loading / error state ---- */
+    .loading-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #57606a;
+      font-size: 14px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid #d0d7de;
+      border-top-color: #3b82d4;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Toolbar ---- */
+    .report-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 0 16px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 5px;
+      border: 1px solid;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      background: none;
+      transition: background 0.12s;
+    }
+    .btn-primary {
+      background: #3b82d4;
+      color: #fff;
+      border-color: #3b82d4;
+    }
+    .btn-primary:hover:not(:disabled) { background: #2f6dbf; border-color: #2f6dbf; }
+    .btn-secondary {
+      background: #fff;
+      color: #1f2328;
+      border-color: #d0d7de;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #f7f8fa; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .toolbar-msg { font-size: 12px; color: #57606a; }
+
+    /* ---- Patch diff styling ---- */
+    .diff-line-add  { color: #1a5c1a; background: #e6f9e6; display: block; }
+    .diff-line-rm   { color: #a12121; background: #fff0f0; display: block; }
+    .diff-line-hunk { color: #57606a; background: #f0f6ff; display: block; }
+  </style>
+</head>
+<body>
+
+<header class="page-header">
+  <div style="flex:1">
+    <h1>BugProof — Evidence Report</h1>
+    <div class="subtitle">
+      Bug ID: <span id="hdr-bug-id">{{ bug_id }}</span>
+      &nbsp;·&nbsp;
+      <a href="/">← Back to submission</a>
+    </div>
+  </div>
+</header>
+
+<div class="report-layout">
+
+  <!-- Toolbar -->
+  <div class="report-toolbar">
+    <button class="btn btn-primary" id="btn-generate" onclick="generateReport()">
+      <span class="spinner" id="gen-spinner" style="display:none"></span>
+      Generate / Refresh Report
+    </button>
+    <button class="btn btn-secondary" id="btn-reload" onclick="loadAll()">
+      Reload Data
+    </button>
+    <span class="toolbar-msg" id="toolbar-msg"></span>
+  </div>
+
+  <!-- Top-level loading indicator -->
+  <div id="loading-state" class="loading-state">
+    <span class="spinner"></span> Loading report data…
+  </div>
+
+  <!-- Main report (hidden until data loads) -->
+  <div id="report-root" style="display:none">
+
+    <!-- ── SUMMARY BANNER ── -->
+    <div class="report-summary" id="summary-banner"></div>
+
+    <!-- ── 1. BUG SUMMARY ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-bug')">
+        <span class="section-title">Bug Summary</span>
+        <span class="section-toggle open" id="toggle-sec-bug">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-bug"></div>
+    </div>
+
+    <!-- ── 2. INVESTIGATION ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-inv')">
+        <span class="section-title">Investigation</span>
+        <span class="section-toggle open" id="toggle-sec-inv">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-inv"></div>
+    </div>
+
+    <!-- ── 3. MACHINE-VERIFIED EVIDENCE ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-evidence')">
+        <span class="section-title">
+          Machine-Verified Evidence
+          <span class="label-pill pill-machine" style="margin-left:6px">MACHINE-VERIFIED</span>
+        </span>
+        <span class="section-toggle open" id="toggle-sec-evidence">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-evidence"></div>
+    </div>
+
+    <!-- ── 4. AI-GENERATED ANALYSIS ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-ai')">
+        <span class="section-title">
+          AI-Generated Analysis
+          <span class="label-pill pill-ai" style="margin-left:6px">AI-GENERATED</span>
+        </span>
+        <span class="section-toggle open" id="toggle-sec-ai">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-ai"></div>
+    </div>
+
+    <!-- ── 5. PROPOSED FIX ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-fix')">
+        <span class="section-title">Proposed Fix</span>
+        <span class="section-toggle open" id="toggle-sec-fix">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-fix"></div>
+    </div>
+
+    <!-- ── 6. TESTING ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-testing')">
+        <span class="section-title">Testing &amp; Verification</span>
+        <span class="section-toggle open" id="toggle-sec-testing">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-testing"></div>
+    </div>
+
+    <!-- ── 7. CHANGE IMPACT ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-impact')">
+        <span class="section-title">Change Impact</span>
+        <span class="section-toggle open" id="toggle-sec-impact">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-impact"></div>
+    </div>
+
+    <!-- ── 8. FINAL STATUS ── -->
+    <div class="card">
+      <div class="section-header" onclick="toggleSection('sec-final')">
+        <span class="section-title">Final Status</span>
+        <span class="section-toggle open" id="toggle-sec-final">&#9658;</span>
+      </div>
+      <div class="section-body" id="sec-final"></div>
+    </div>
+
+  </div><!-- /report-root -->
+</div><!-- /report-layout -->
+
+<script>
+  // ─── Constants ───────────────────────────────────────────────
+  const BUG_ID = {{ bug_id | tojson }};
+
+  // ─── State ───────────────────────────────────────────────────
+  let bugData       = null;
+  let reportData    = null;   // latest generated report (may be null)
+  let invData       = null;   // latest investigation
+  let hypotheses    = [];
+  let fixData       = null;   // latest fix
+  let testRuns      = [];
+  let impactData    = null;
+
+  // ─── Helpers ─────────────────────────────────────────────────
+  function esc(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function na(val, cls) {
+    if (val == null || val === '' || (Array.isArray(val) && val.length === 0)) {
+      return `<span class="meta-val na">Not available</span>`;
+    }
+    return `<span class="meta-val ${cls || ''}">${esc(String(val))}</span>`;
+  }
+
+  function fmtTs(iso) {
+    if (!iso) return 'Not available';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    } catch { return iso; }
+  }
+
+  function pct(v) {
+    if (v == null) return 'N/A';
+    return Math.round(Number(v) * 100) + '%';
+  }
+
+  function toggleSection(id) {
+    const body    = document.getElementById(id);
+    const toggle  = document.getElementById('toggle-' + id);
+    const hidden  = body.classList.toggle('hidden');
+    toggle.classList.toggle('open', !hidden);
+  }
+
+  function setToolbarMsg(msg, isError) {
+    const el = document.getElementById('toolbar-msg');
+    el.textContent = msg;
+    el.style.color = isError ? '#a12121' : '#57606a';
+  }
+
+  function metaRow(key, valHtml) {
+    return `<div class="meta-key">${esc(key)}</div><div>${valHtml}</div>`;
+  }
+
+  function statusBadge(status) {
+    if (!status) return na(null);
+    return `<span class="status-badge status-${esc(status)}">${esc(status)}</span>`;
+  }
+
+  function pillAI()      { return `<span class="label-pill pill-ai">AI-GENERATED</span>`; }
+  function pillMachine() { return `<span class="label-pill pill-machine">MACHINE-VERIFIED</span>`; }
+
+  function renderFileList(files) {
+    if (!files || files.length === 0) return na(null);
+    return `<ul class="file-list">${files.map(f => `<li>${esc(String(f))}</li>`).join('')}</ul>`;
+  }
+
+  function renderPatch(patch) {
+    if (!patch) return `<span class="meta-val na">No fix patch available.</span>`;
+    // Colour diff lines
+    const lines = patch.split('\n').map(line => {
+      if (line.startsWith('@@')) return `<span class="diff-line-hunk">${esc(line)}</span>`;
+      if (line.startsWith('+'))  return `<span class="diff-line-add">${esc(line)}</span>`;
+      if (line.startsWith('-'))  return `<span class="diff-line-rm">${esc(line)}</span>`;
+      return esc(line) + '\n';
+    });
+    return `<div class="code-block">${lines.join('')}</div>`;
+  }
+
+  function confidenceBar(val, verified) {
+    if (val == null) return '';
+    const fill = Math.round(Number(val) * 100);
+    const cls  = verified ? 'verified' : '';
+    return `
+      <div class="confidence-bar-track">
+        <div class="confidence-bar-fill ${cls}" style="width:${fill}%"></div>
+      </div>`;
+  }
+
+  // ─── API calls ───────────────────────────────────────────────
+  async function apiFetch(url) {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} from ${url}`);
+    return resp.json();
+  }
+
+  async function apiPost(url, body) {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`);
+    return json;
+  }
+
+  // ─── Load all data ───────────────────────────────────────────
+  async function loadAll() {
+    document.getElementById('loading-state').style.display = 'block';
+    document.getElementById('report-root').style.display   = 'none';
+    setToolbarMsg('');
+
+    try {
+      // 1. Bug
+      bugData = await apiFetch(`/api/bugs/${BUG_ID}`);
+
+      // 2. Latest generated report (if any)
+      try {
+        const reports = await apiFetch(`/api/reports/bug/${BUG_ID}`);
+        reportData = (reports && reports.length > 0) ? reports[0] : null;
+      } catch { reportData = null; }
+
+      // 3. Investigations
+      try {
+        const invList = await apiFetch(`/api/investigations/bug/${BUG_ID}`);
+        invData = (invList && invList.length > 0) ? invList[0] : null;
+      } catch { invData = null; }
+
+      // 4. Hypotheses (AI)
+      hypotheses = [];
+      if (invData) {
+        try {
+          hypotheses = await apiFetch(`/api/investigations/${invData.id}/hypotheses`);
+        } catch { hypotheses = []; }
+      }
+
+      // 5. Test runs
+      try {
+        testRuns = await apiFetch(`/api/verification/test-runs/bug/${BUG_ID}`);
+      } catch { testRuns = []; }
+
+      // 6. Fix — via investigation (report content has fix section if report exists)
+      fixData = null;
+      if (invData) {
+        try {
+          const fixes = await apiFetch(`/api/fixes/investigation/${invData.id}`);
+          fixData = (fixes && fixes.length > 0) ? fixes[0] : null;
+        } catch { fixData = null; }
+      }
+
+      // 7. Impact analysis
+      impactData = null;
+      if (fixData) {
+        try {
+          impactData = await apiFetch(`/api/verification/impact/${fixData.id}`);
+        } catch { impactData = null; }
+      }
+
+      renderReport();
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('report-root').style.display   = 'block';
+    } catch (err) {
+      document.getElementById('loading-state').innerHTML =
+        `<div class="error-banner">Failed to load report data: ${esc(err.message)}</div>`;
+    }
+  }
+
+  // ─── Generate / refresh report ───────────────────────────────
+  async function generateReport() {
+    const btn = document.getElementById('btn-generate');
+    const spin= document.getElementById('gen-spinner');
+    btn.disabled  = true;
+    spin.style.display = 'inline-block';
+    setToolbarMsg('Generating report…');
+    try {
+      reportData = await apiPost(`/api/reports/bug/${BUG_ID}/generate`);
+      setToolbarMsg('Report generated at ' + fmtTs(reportData.generated_at));
+      // Re-render with fresh report data
+      renderReport();
+      document.getElementById('report-root').style.display = 'block';
+      document.getElementById('loading-state').style.display = 'none';
+    } catch (err) {
+      setToolbarMsg('Error: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      spin.style.display = 'none';
+    }
+  }
+
+  // ─── Render all sections ─────────────────────────────────────
+  function renderReport() {
+    renderSummaryBanner();
+    renderBugSection();
+    renderInvestigationSection();
+    renderEvidenceSection();
+    renderAISection();
+    renderFixSection();
+    renderTestingSection();
+    renderImpactSection();
+    renderFinalStatus();
+  }
+
+  // ── Summary banner ──────────────────────────────────────────
+  function renderSummaryBanner() {
+    const el = document.getElementById('summary-banner');
+    if (!bugData) { el.style.display = 'none'; return; }
+
+    const status = bugData.status || 'UNKNOWN';
+    let confHtml = '';
+    if (reportData) {
+      const cv  = reportData.fix_confidence;
+      const ver = reportData.confidence_machine_verified;
+      confHtml = `
+        <div class="confidence-block">
+          <div class="confidence-num">${pct(cv)}</div>
+          <div class="confidence-label">Fix Confidence</div>
+          <div>${ver ? pillMachine() : pillAI()}</div>
+          ${confidenceBar(cv, ver)}
+        </div>`;
+    }
+
+    const summary = reportData ? esc(reportData.summary || '') : '';
+    const genAt   = reportData ? `<div style="font-size:11px;color:#57606a;margin-top:6px">Report generated: ${fmtTs(reportData.generated_at)}</div>` : `<div style="font-size:11px;color:#57606a;margin-top:6px">No report generated yet — click "Generate / Refresh Report" above.</div>`;
+
+    el.innerHTML = `
+      <div class="summary-text">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          ${statusBadge(status)}
+          <span style="font-weight:600;font-size:14px">${esc(bugData.title || '')}</span>
+        </div>
+        ${summary ? `<p>${summary}</p>` : ''}
+        ${genAt}
+      </div>
+      ${confHtml}`;
+  }
+
+  // ── 1. Bug Section ───────────────────────────────────────────
+  function renderBugSection() {
+    const el = document.getElementById('sec-bug');
+    if (!bugData) {
+      el.innerHTML = `<div class="error-banner">Bug data unavailable.</div>`;
+      return;
+    }
+    const ctx = bugData.extra_context;
+    const ctxStr = ctx ? (typeof ctx === 'object' ? JSON.stringify(ctx, null, 2) : String(ctx)) : null;
+    el.innerHTML = `
+      <div class="meta-grid">
+        ${metaRow('Title',       na(bugData.title))}
+        ${metaRow('Status',      statusBadge(bugData.status))}
+        ${metaRow('Repository',  na(bugData.target_repository))}
+        ${metaRow('Submitted',   na(fmtTs(bugData.created_at)))}
+        ${metaRow('Description', na(bugData.description))}
+        ${metaRow('Error / Traceback', bugData.error_message
+            ? `<div class="code-block">${esc(bugData.error_message)}</div>`
+            : na(null))}
+        ${metaRow('Extra Context / Failing Test', ctxStr
+            ? `<div class="code-block">${esc(ctxStr)}</div>`
+            : na(null))}
+      </div>`;
+  }
+
+  // ── 2. Investigation Section ─────────────────────────────────
+  function renderInvestigationSection() {
+    const el = document.getElementById('sec-inv');
+    if (!invData) {
+      el.innerHTML = `<div class="error-banner">No investigation found. The investigation pipeline has not run yet, or it failed to start.</div>`;
+      return;
+    }
+
+    const statusFailed = invData.status === 'FAILED';
+    let html = '';
+
+    if (statusFailed) {
+      html += `<div class="error-banner">Investigation failed.${invData.error_details ? ' ' + esc(invData.error_details) : ''}</div>`;
+    }
+
+    const files = invData.relevant_files || [];
+    const fns   = invData.relevant_functions || [];
+
+    html += `
+      <div class="meta-grid">
+        ${metaRow('Status',   statusBadge(invData.status))}
+        ${metaRow('Summary',  na(invData.summary))}
+        ${metaRow('Affected Files',
+            files.length ? renderFileList(files) : na(null))}
+        ${metaRow('Affected Functions',
+            fns.length  ? renderFileList(fns)   : na(null))}
+        ${metaRow('Started',   na(fmtTs(invData.started_at)))}
+        ${metaRow('Completed', na(fmtTs(invData.completed_at)))}
+      </div>`;
+    el.innerHTML = html;
+  }
+
+  // ── 3. Machine-Verified Evidence ─────────────────────────────
+  function renderEvidenceSection() {
+    const el = document.getElementById('sec-evidence');
+
+    // Pull evidence from report content if available, else from direct API
+    const content = reportData && reportData.content;
+    const evSection = content && content.evidence;
+
+    // Test runs are machine-verified
+    const runs = testRuns || [];
+
+    let html = '';
+    html += `<div class="machine-banner"><span class="icon">&#10003;</span> This section shows only machine-executed observations. AI hypotheses are in the AI-Generated Analysis section below.</div>`;
+
+    // --- Evidence items ---
+    if (evSection) {
+      const items = evSection.items || [];
+      const verifiedItems = items.filter(e => e.is_verified);
+      html += `<div style="margin-bottom:8px;font-size:13px;font-weight:600">Evidence Items <span style="color:#57606a;font-weight:400">(${evSection.machine_verified_count || 0} machine-verified of ${evSection.total || 0} total)</span></div>`;
+      if (verifiedItems.length === 0) {
+        html += `<p style="color:#57606a;font-size:13px">No machine-verified evidence items collected.</p>`;
+      } else {
+        verifiedItems.forEach(e => {
+          html += renderEvidenceItem(e, true);
+        });
+      }
+    } else if (!reportData) {
+      html += `<p style="color:#57606a;font-size:13px">Generate the report to see evidence items.</p>`;
+    } else {
+      html += `<p style="color:#57606a;font-size:13px">No evidence data in report.</p>`;
+    }
+
+    // --- Test runs (machine-verified) ---
+    html += `<hr class="section-divider">`;
+    html += `<div style="margin-bottom:8px;font-size:13px;font-weight:600">Test Run Results ${pillMachine()}</div>`;
+
+    if (runs.length === 0) {
+      html += `<p style="color:#57606a;font-size:13px">No test runs executed yet.</p>`;
+    } else {
+      html += `<div class="test-run-row" style="font-weight:600;color:#57606a;border-bottom:2px solid #e5e7eb">
+        <span>Kind</span><span>Status</span><span>Exit Code</span><span>Details</span>
+      </div>`;
+      runs.forEach(tr => {
+        const kindKind = {
+          BUG_REPRODUCTION: 'Reproduction',
+          REGRESSION: 'Regression',
+          GENERATED_REGRESSION: 'Gen. Regression',
+          EXPLORATORY: 'Exploratory',
+        }[tr.kind] || tr.kind;
+        const passed  = tr.tests_passed != null ? tr.tests_passed : '—';
+        const failed  = tr.tests_failed != null ? tr.tests_failed : '—';
+        const total   = tr.tests_total  != null ? tr.tests_total  : '—';
+        html += `<div class="test-run-row">
+          <span class="test-run-kind">${esc(kindKind)}</span>
+          <span class="tr-${esc(tr.status)}">${esc(tr.status)}</span>
+          <span>${tr.exit_code != null ? esc(String(tr.exit_code)) : '—'}</span>
+          <span style="font-size:12px;color:#57606a">
+            Passed: ${passed} / Failed: ${failed} / Total: ${total}
+            ${tr.command ? `<br><span class="meta-val mono" style="display:inline">${esc(tr.command)}</span>` : ''}
+          </span>
+        </div>`;
+      });
+    }
+
+    el.innerHTML = html;
+  }
+
+  function renderEvidenceItem(e, isVerified) {
+    const typeLabel = (e.evidence_type || e.type || 'UNKNOWN').replace(/_/g, ' ');
+    const verBadge  = isVerified ? pillMachine() : pillAI();
+    let extra = '';
+    if (e.file_path) extra += `<span class="meta-val mono">${esc(e.file_path)}${e.line_number ? ':' + e.line_number : ''}</span>  `;
+    if (e.command_executed) extra += `<br>Command: <code>${esc(e.command_executed)}</code>`;
+    if (e.exit_code != null) extra += `  Exit: <code>${esc(String(e.exit_code))}</code>`;
+    return `<div class="evidence-item">
+      <div class="evidence-item-header">
+        <span class="evidence-type">${esc(typeLabel)}</span>
+        ${verBadge}
+      </div>
+      <div class="evidence-desc">${esc(e.description || '')}</div>
+      ${extra ? `<div class="evidence-meta">${extra}</div>` : ''}
+    </div>`;
+  }
+
+  // ── 4. AI-Generated Analysis ─────────────────────────────────
+  function renderAISection() {
+    const el = document.getElementById('sec-ai');
+
+    let html = '';
+    html += `<div class="ai-warning"><span class="icon">&#9888;</span> All content in this section is AI-generated. It has NOT been independently machine-verified unless explicitly marked otherwise. Never treat AI hypotheses as confirmed facts.</div>`;
+
+    if (!invData) {
+      html += `<p style="color:#57606a;font-size:13px">No investigation data — AI analysis unavailable.</p>`;
+      el.innerHTML = html;
+      return;
+    }
+
+    const isAIGen = invData.root_cause_ai_generated;
+    const isMachineSupported = invData.root_cause_machine_supported;
+    const aiUnavailable = !invData.suspected_cause && !invData.root_cause_explanation && hypotheses.length === 0;
+
+    if (aiUnavailable) {
+      html += `<p style="color:#57606a;font-size:13px">AI unavailable / fallback — no AI analysis was produced for this investigation.</p>`;
+      el.innerHTML = html;
+      return;
+    }
+
+    // Root-cause hypothesis
+    html += `<div style="margin-bottom:10px">`;
+    html += `<div style="font-size:13px;font-weight:600;margin-bottom:4px">Root-Cause Hypothesis ${pillAI()}${isMachineSupported ? '&nbsp;' + pillMachine() : ''}</div>`;
+    if (invData.suspected_cause) {
+      html += `<p style="font-size:13px">${esc(invData.suspected_cause)}</p>`;
+    } else {
+      html += `<p style="font-size:13px;color:#57606a">Not available</p>`;
+    }
+    if (invData.confidence != null) {
+      html += `<div style="font-size:12px;color:#57606a;margin-top:4px">AI Confidence: <strong>${pct(invData.confidence)}</strong> ${pillAI()}</div>`;
+      html += confidenceBar(invData.confidence, false);
+    }
+    html += `</div>`;
+
+    // AI Reasoning / root cause explanation
+    html += `<hr class="section-divider">`;
+    html += `<div style="font-size:13px;font-weight:600;margin-bottom:4px">AI Reasoning ${pillAI()}</div>`;
+    if (invData.root_cause_explanation) {
+      html += `<p style="font-size:13px">${esc(invData.root_cause_explanation)}</p>`;
+    } else {
+      html += `<p style="font-size:13px;color:#57606a">Not available</p>`;
+    }
+
+    // Hypotheses list
+    if (hypotheses.length > 0) {
+      html += `<hr class="section-divider">`;
+      html += `<div style="font-size:13px;font-weight:600;margin-bottom:6px">Hypotheses ${pillAI()}</div>`;
+      hypotheses.forEach((h, i) => {
+        const corroborated = h.machine_corroborated
+          ? `&nbsp;<span class="label-pill pill-machine" style="font-size:10px">CORROBORATED</span>`
+          : '';
+        html += `<div class="evidence-item">
+          <div class="evidence-item-header">
+            <span style="font-size:13px;font-weight:600">${esc(h.title || `Hypothesis ${i+1}`)}</span>
+            ${pillAI()}${corroborated}
+            ${h.confidence != null ? `<span style="font-size:12px;color:#57606a">Confidence: ${pct(h.confidence)}</span>` : ''}
+          </div>
+          <div class="evidence-desc">${esc(h.explanation || '')}</div>
+        </div>`;
+      });
+    }
+
+    el.innerHTML = html;
+  }
+
+  // ── 5. Proposed Fix ──────────────────────────────────────────
+  function renderFixSection() {
+    const el = document.getElementById('sec-fix');
+    const fix = fixData;
+
+    if (!fix) {
+      el.innerHTML = `<p style="color:#57606a;font-size:13px">No fix patch available.</p>`;
+      return;
+    }
+
+    const approvalClass = {
+      APPROVED: 'pill-machine',
+      REJECTED: 'pill-warn',
+      PENDING:  'pill-neutral',
+    }[fix.approval_status] || 'pill-neutral';
+
+    const appClass = {
+      APPLIED:     'pill-machine',
+      FAILED:      'pill-warn',
+      NOT_APPLIED: 'pill-neutral',
+      APPLYING:    'pill-neutral',
+    }[fix.application_status] || 'pill-neutral';
+
+    let html = '';
+    if (fix.ai_generated) {
+      html += `<div class="ai-warning"><span class="icon">&#9888;</span> This fix is AI-generated. It requires developer review and approval before it can be applied.</div>`;
+    }
+
+    html += `<div class="meta-grid" style="margin-bottom:12px">
+      ${metaRow('Approval',    `<span class="label-pill ${approvalClass}">${esc(fix.approval_status || 'N/A')}</span>${fix.approved_by ? '&nbsp;<span style="font-size:12px;color:#57606a">by ' + esc(fix.approved_by) + '</span>' : ''}`)}
+      ${metaRow('Application', `<span class="label-pill ${appClass}">${esc(fix.application_status || 'N/A')}</span>${fix.application_error ? `<span style="font-size:12px;color:#a12121;margin-left:6px">${esc(fix.application_error)}</span>` : ''}`)}
+      ${fix.confidence != null ? metaRow('AI Confidence', `${pct(fix.confidence)} ${pillAI()}`) : ''}
+      ${metaRow('Files Changed', fix.files_changed && fix.files_changed.length ? renderFileList(fix.files_changed) : na(null))}
+    </div>`;
+
+    html += `<div style="font-size:13px;font-weight:600;margin-bottom:4px">Explanation ${fix.ai_generated ? pillAI() : ''}</div>`;
+    html += `<p style="font-size:13px">${fix.explanation ? esc(fix.explanation) : '<span class="meta-val na">Not available</span>'}</p>`;
+
+    html += `<div style="font-size:13px;font-weight:600;margin:12px 0 4px">Patch / Diff ${fix.ai_generated ? pillAI() : ''}</div>`;
+    html += renderPatch(fix.patch);
+
+    el.innerHTML = html;
+  }
+
+  // ── 6. Testing ───────────────────────────────────────────────
+  function renderTestingSection() {
+    const el = document.getElementById('sec-testing');
+    const runs = testRuns || [];
+
+    if (runs.length === 0) {
+      el.innerHTML = `<p style="color:#57606a;font-size:13px">No test runs have been executed yet. Verification is incomplete.</p>`;
+      return;
+    }
+
+    const byKind = {};
+    runs.forEach(r => {
+      if (!byKind[r.kind]) byKind[r.kind] = [];
+      byKind[r.kind].push(r);
+    });
+
+    const kindMeta = {
+      BUG_REPRODUCTION:    { label: 'Bug Reproduction',        desc: 'Confirms the bug is reproducible' },
+      REGRESSION:          { label: 'Regression Test',         desc: 'Verifies the fix does not break existing tests' },
+      GENERATED_REGRESSION:{ label: 'Generated Regression',    desc: 'AI-generated regression test run' },
+      EXPLORATORY:         { label: 'Exploratory',             desc: 'Ad-hoc or exploratory test execution' },
+    };
+
+    let html = `<div class="machine-banner"><span class="icon">&#10003;</span> All test results are machine-executed. They are not AI predictions.</div>`;
+
+    Object.entries(kindMeta).forEach(([kind, meta]) => {
+      const kindRuns = byKind[kind];
+      html += `<div style="margin-bottom:14px">`;
+      html += `<div style="font-size:13px;font-weight:600;margin-bottom:2px">${esc(meta.label)} ${pillMachine()}</div>`;
+      html += `<div style="font-size:12px;color:#57606a;margin-bottom:6px">${esc(meta.desc)}</div>`;
+      if (!kindRuns || kindRuns.length === 0) {
+        html += `<p style="font-size:13px;color:#57606a">Not executed.</p>`;
+      } else {
+        kindRuns.forEach(tr => {
+          const statusCls = `tr-${tr.status}`;
+          const incomplete = (tr.status === 'PENDING' || tr.status === 'RUNNING');
+          html += `<div class="evidence-item">
+            <div class="evidence-item-header">
+              <span class="${statusCls}" style="font-weight:600;font-size:13px">${esc(tr.status)}</span>
+              ${incomplete ? `<span class="label-pill pill-warn">Incomplete verification.</span>` : ''}
+              ${pillMachine()}
+            </div>
+            <div class="meta-grid">
+              ${metaRow('Exit Code', tr.exit_code != null ? na(String(tr.exit_code), 'mono') : na(null))}
+              ${metaRow('Tests', tr.tests_total != null
+                ? `<span>Total: ${esc(String(tr.tests_total))} &nbsp;|&nbsp; Passed: ${esc(String(tr.tests_passed ?? '—'))} &nbsp;|&nbsp; Failed: ${esc(String(tr.tests_failed ?? '—'))}</span>`
+                : na(null))}
+              ${tr.command ? metaRow('Command', `<div class="code-block" style="max-height:60px">${esc(tr.command)}</div>`) : ''}
+              ${tr.output  ? metaRow('Output',  `<div class="code-block" style="max-height:120px">${esc(tr.output)}</div>`) : ''}
+            </div>
+          </div>`;
+        });
+      }
+      html += `</div>`;
+    });
+
+    el.innerHTML = html;
+  }
+
+  // ── 7. Change Impact ─────────────────────────────────────────
+  function renderImpactSection() {
+    const el = document.getElementById('sec-impact');
+    const fix = fixData;
+
+    let html = '';
+    if (!fix) {
+      el.innerHTML = `<p style="color:#57606a;font-size:13px">No fix available — change impact analysis cannot be run.</p>`;
+      return;
+    }
+
+    const riskInfo = fix.risk_info || {};
+    const imp = impactData || {};
+
+    const riskLevel    = imp.impact_risk_level    || riskInfo.impact_risk_level;
+    const changedFiles = imp.impact_changed_files  || riskInfo.impact_changed_files;
+    const areasCount   = imp.impact_affected_areas_count != null
+      ? imp.impact_affected_areas_count
+      : riskInfo.impact_affected_areas_count;
+    const relatedTests = imp.impact_related_tests  || riskInfo.impact_related_tests;
+    const analysedAt   = imp.impact_analysed_at    || riskInfo.impact_analysed_at;
+    const impError     = imp.impact_analysis_error || riskInfo.impact_analysis_error;
+
+    const noImpact = !riskLevel && !changedFiles && areasCount == null;
+    if (noImpact) {
+      html += `<p style="color:#57606a;font-size:13px">No impact analysis data available. Run <code>POST /api/verification/impact/analyse</code> with <code>fix_id</code> to generate it.</p>`;
+      el.innerHTML = html;
+      return;
+    }
+
+    if (impError) {
+      html += `<div class="error-banner">Impact analysis error: ${esc(impError)}</div>`;
+    }
+
+    const riskPill = {
+      LOW:      'pill-machine',
+      MEDIUM:   'pill-neutral',
+      HIGH:     'pill-warn',
+    }[String(riskLevel || '').toUpperCase()] || 'pill-neutral';
+
+    html += `<div class="meta-grid" style="margin-bottom:12px">
+      ${metaRow('Risk Level',    riskLevel
+          ? `<span class="label-pill ${riskPill}">${esc(String(riskLevel)).toUpperCase()}</span>`
+          : na(null))}
+      ${metaRow('Changed Files', changedFiles && changedFiles.length ? renderFileList(changedFiles) : na(null))}
+      ${metaRow('Affected Areas Count', areasCount != null ? na(String(areasCount)) : na(null))}
+      ${metaRow('Areas Requiring Retesting', relatedTests && relatedTests.length ? renderFileList(relatedTests) : na(null))}
+      ${metaRow('Analysed At', na(fmtTs(analysedAt)))}
+    </div>`;
+
+    // Callers / dependencies from full impact result
+    if (imp.callers && imp.callers.length) {
+      html += `<div style="font-size:13px;font-weight:600;margin:8px 0 4px">Callers / Dependencies</div>`;
+      html += renderFileList(imp.callers.map(c => typeof c === 'string' ? c : JSON.stringify(c)));
+    }
+
+    // Affected areas detail
+    if (imp.affected_areas && imp.affected_areas.length) {
+      html += `<div style="font-size:13px;font-weight:600;margin:8px 0 4px">Affected Areas</div>`;
+      const areas = imp.affected_areas.slice(0, 20);
+      html += `<ul class="file-list">`;
+      areas.forEach(a => {
+        const label = a.file ? `${a.file}${a.area ? ' — ' + a.area : ''}` : JSON.stringify(a);
+        html += `<li>${esc(label)}</li>`;
+      });
+      html += `</ul>`;
+    }
+
+    el.innerHTML = html;
+  }
+
+  // ── 8. Final Status ──────────────────────────────────────────
+  function renderFinalStatus() {
+    const el = document.getElementById('sec-final');
+    if (!bugData) {
+      el.innerHTML = `<div class="error-banner">Bug data unavailable.</div>`;
+      return;
+    }
+
+    const status = bugData.status || 'UNKNOWN';
+    const boxClass = status === 'COMPLETED' ? 'final-COMPLETED'
+                   : status === 'FAILED'    ? 'final-FAILED'
+                   : 'final-other';
+
+    // Build honest note from actual status — never claim success unless backend says so
+    const statusNote = {
+      RECEIVED:            'Bug received. Investigation has not started.',
+      INVESTIGATING:       'Investigation is currently running.',
+      ROOT_CAUSE_FOUND:    'Root cause identified. Fix not yet generated.',
+      FIX_GENERATED:       'Fix generated. Awaiting developer approval.',
+      WAITING_FOR_APPROVAL:'Fix is pending developer approval.',
+      FIX_APPLIED:         'Fix has been applied to the repository. Verification pending.',
+      VERIFYING:           'Verification in progress.',
+      COMPLETED:           'Workflow completed.',
+      FAILED:              'Workflow encountered a failure. Review the investigation and test results above.',
+      CANCELLED:           'Bug was cancelled.',
+    }[status] || 'Status unknown.';
+
+    // Limitations
+    const content   = reportData && reportData.content;
+    const limits    = content ? (content.limitations || []) : [];
+
+    let html = `<div class="final-status-box ${boxClass}">
+      <div class="big-status">${esc(status)}</div>
+      <div class="status-note">${esc(statusNote)}</div>
+    </div>`;
+
+    if (limits.length > 0) {
+      html += `<div style="margin-top:12px;font-size:13px;font-weight:600">Limitations &amp; Notes</div>`;
+      html += `<ul class="limitations-list">`;
+      limits.forEach(l => { html += `<li>${esc(l)}</li>`; });
+      html += `</ul>`;
+    }
+
+    // Confidence / verification summary
+    if (reportData) {
+      const cv  = reportData.fix_confidence;
+      const ver = reportData.confidence_machine_verified;
+      if (cv != null) {
+        html += `<div style="margin-top:12px" class="meta-grid">
+          ${metaRow('Fix Confidence', `${pct(cv)} ${ver ? pillMachine() : pillAI()}`)}
+          ${metaRow('Confidence Source', ver ? 'Machine-verified test runs' : 'AI-reported (not machine-verified)')}
+        </div>`;
+      }
+    }
+
+    // Explicit false-negative guards
+    const completed = status === 'COMPLETED';
+    const testsPassed = testRuns.some(tr => tr.status === 'PASSED');
+    const hasApprovedFix = fixData && fixData.approval_status === 'APPROVED';
+    const hasAppliedFix  = fixData && fixData.application_status === 'APPLIED';
+
+    html += `<hr class="section-divider">`;
+    html += `<div class="meta-grid">
+      ${metaRow('Fix Applied',        hasAppliedFix  ? `<span class="label-pill pill-machine">APPLIED</span>`  : `<span class="label-pill pill-neutral">NOT APPLIED</span>`)}
+      ${metaRow('Fix Approved',       hasApprovedFix ? `<span class="label-pill pill-machine">APPROVED</span>` : `<span class="label-pill pill-neutral">${esc((fixData && fixData.approval_status) || 'N/A')}</span>`)}
+      ${metaRow('Tests Passed',       testsPassed    ? `<span class="label-pill pill-machine">YES — machine-verified</span>` : (testRuns.length ? `<span class="label-pill pill-warn">NOT PASSED</span>` : `<span class="label-pill pill-neutral">NO RUNS</span>`))}
+      ${metaRow('Workflow Completed', completed      ? `<span class="label-pill pill-machine">YES</span>` : `<span class="label-pill pill-neutral">NO</span>`)}
+    </div>`;
+
+    el.innerHTML = html;
+  }
+
+  // ─── Init ─────────────────────────────────────────────────────
+  loadAll();
+</script>
+</body>
+</html>

@@ -66,6 +66,10 @@ def create_app(config_override: dict | None = None) -> Flask:
     app.register_blueprint(verification_bp)
     app.register_blueprint(reports_bp)
 
+    # ---- Register frontend UI blueprint (Task 1: Bug Input / Result UI) ----
+    from backend.frontend import frontend_bp
+    app.register_blueprint(frontend_bp)
+
     # ---- Health check ----
     @app.route("/health")
     def health():
