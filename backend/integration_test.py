@@ -104,21 +104,7 @@ def run_integration():
 
     # 13. Approve fix
     print("13. Approving fix...")
-    # First, inject a dummy patch into the fix so it can be applied
-    with app.app_context():
-        from backend.models import Fix
-        fix_record = db.session.get(Fix, fix_id)
-        fix_record.patch = """--- a/thefuck/exceptions.py
-+++ b/thefuck/exceptions.py
-@@ -9,3 +9,6 @@
- class ScriptNotInLog(Exception):
-     \"\"\"Script not found in log.\"\"\"
-+
-+class DummyException(Exception):
-+    pass
-"""
-        db.session.commit()
-    
+
     res = client.post(f"/api/fixes/{fix_id}/approve", json={"approved_by": "Test Engineer"})
     if res.status_code != 200:
         print(f"FAILED to approve fix: {res.status_code} {res.text}")
@@ -146,6 +132,14 @@ def run_integration():
         print(f"Regression run status: {run_data['status']}")
         if run_data['status'] == 'ERROR':
             print(f"Run output: {run_data.get('output')}")
+
+    # 16. Generate Final Report (Member 3 Integration)
+    print("16. Generating Final Report...")
+    res = client.post(f"/api/reports/bug/{bug_id}/generate")
+    if res.status_code not in (200, 201):
+        print(f"FAILED to generate report: {res.status_code} {res.text}")
+    else:
+        print(f"Report generated successfully. ID: {res.get_json()['id']}")
 
     print("=== INTEGRATION TEST FINISHED ===")
 

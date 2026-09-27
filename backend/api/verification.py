@@ -121,6 +121,8 @@ def _execute_and_persist(test_run: TestRun, bug: Bug, ref: str | None) -> None:
     All exceptions are caught so the record is never left stuck in RUNNING.
     The caller is responsible for committing after this function returns.
     """
+    from backend.models import BugStatus
+    bug.status = BugStatus.VERIFYING
     test_run.status = TestRunStatus.RUNNING
     test_run.started_at = datetime.now(timezone.utc)
     db.session.commit()  # flush RUNNING status before potentially long execution
@@ -135,6 +137,8 @@ def _execute_and_persist(test_run: TestRun, bug: Bug, ref: str | None) -> None:
 
         result = repo.run_tests()
     except Exception as exc:  # noqa: BLE001
+        from backend.models import BugStatus
+        bug.status = BugStatus.FAILED
         test_run.status = TestRunStatus.ERROR
         test_run.output = f"Execution error: {exc}"
         test_run.completed_at = datetime.now(timezone.utc)
@@ -151,13 +155,17 @@ def _execute_and_persist(test_run: TestRun, bug: Bug, ref: str | None) -> None:
     test_run.completed_at = datetime.now(timezone.utc)
 
     exit_code = result.get("exit_code")
+    from backend.models import BugStatus
     if exit_code == 0:
         test_run.status = TestRunStatus.PASSED
+        bug.status = BugStatus.COMPLETED
     elif exit_code is None:
         # Runner could not determine exit code (e.g. command not found)
         test_run.status = TestRunStatus.ERROR
+        bug.status = BugStatus.FAILED
     else:
         test_run.status = TestRunStatus.FAILED
+        bug.status = BugStatus.FAILED
 
 
 # ---------------------------------------------------------------------------

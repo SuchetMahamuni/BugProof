@@ -1436,6 +1436,19 @@
     // API succeeded — re-read from backend (data IS the updated fix)
     _renderApprovalStatus(data);
     // Hide action buttons — no longer PENDING
+    
+    try {
+      const applyRes = await fetch('/api/fixes/' + fixId + '/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (applyRes.ok) {
+        showMsg('approval-msg', 'Fix applied! Now running verification...', 'info');
+        await fetch('/api/verification/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({fix_id: fixId}) });
+      }
+      if (!applyRes.ok) {
+        showMsg('approval-msg', 'Failed to apply fix.', 'error');
+        return;
+      }
+    } catch (_) {}
+
     document.getElementById('approval-actions').style.display = 'none';
     showMsg('approval-msg', 'Fix approved. Refreshing status…', 'success');
 
@@ -1494,6 +1507,19 @@
 
     // Re-read from backend
     _renderApprovalStatus(data);
+    
+    try {
+      const applyRes = await fetch('/api/fixes/' + fixId + '/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (applyRes.ok) {
+        showMsg('approval-msg', 'Fix applied! Now running verification...', 'info');
+        await fetch('/api/verification/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({fix_id: fixId}) });
+      }
+      if (!applyRes.ok) {
+        showMsg('approval-msg', 'Failed to apply fix.', 'error');
+        return;
+      }
+    } catch (_) {}
+
     document.getElementById('approval-actions').style.display = 'none';
     showMsg('approval-msg', 'Fix rejected. Refreshing status…', 'warning');
 

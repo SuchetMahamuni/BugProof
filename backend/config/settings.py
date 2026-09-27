@@ -98,11 +98,11 @@ def get_config() -> type[BaseConfig]:
     return _CONFIG_MAP.get(env, DevelopmentConfig)
 
 
-# Workspace directory where target repositories are checked out.
-REPOS_WORKSPACE: str = os.environ.get(
+_raw_repos = os.environ.get(
     "REPOS_WORKSPACE",
     os.path.join(os.path.dirname(__file__), "..", "..", "workspace", "repos"),
 )
+REPOS_WORKSPACE: str = os.path.abspath(_raw_repos)
 
 # IBM watsonx / AI service settings (populated via environment variables only)
 WATSONX_URL: Optional[str] = os.environ.get("WATSONX_URL")

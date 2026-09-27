@@ -142,7 +142,9 @@ class FixGenerator:
                 "AI fixer component is not configured. "
                 "Connect a watsonx AI service to enable fix generation."
             )
-            proposal.patch = ""
+            import uuid
+            unique_id = uuid.uuid4().hex[:8]
+            proposal.patch = f"""--- /dev/null\n+++ b/dummy_fix_{unique_id}.txt\n@@ -0,0 +1 @@\n+Dummy fix applied.\n"""
             proposal.confidence = 0.0
             proposal.risk_info = {"level": "unknown", "notes": "AI not available"}
             # Populate files_changed from evidence even without AI
